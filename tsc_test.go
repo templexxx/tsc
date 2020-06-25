@@ -1,7 +1,6 @@
 package tsc
 
 import (
-	"fmt"
 	"sort"
 	"testing"
 )
@@ -28,8 +27,6 @@ func TestRDTSCP(t *testing.T) {
 		sum += r
 	}
 	avg := sum / len(ret)
-
-	fmt.Println(avg)
 
 	// We want < 10% jitter.
 	if ret[len(ret)-1]-avg > 5 {
