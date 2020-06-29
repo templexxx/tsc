@@ -90,7 +90,7 @@ func calibrate() {
 	minDelta := uint64(math.MaxUint64)
 	minIndex := 1 // minIndex is wall clock index where has minDelta.
 
-	// time.Now()'s precision is only µs,
+	// time.Now()'s precision is only µs (on MacOS),
 	// which means we will get multi same wall clock in timeline,
 	// and the middle one is closer to the real time in statistics.
 	// Try to find the minimum delta when wall clock is in the "middle".

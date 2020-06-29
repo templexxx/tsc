@@ -18,9 +18,7 @@ Get unix time (nanoseconds) in blazing low latency. About 10x~100x faster than t
 
 - __High Precision__
 
-  time.Now()'s precision is only µs.
-
-  tsc is ns.
+  tsc's precision is nanosecond.
 
 - __Calibrate__
 
@@ -28,18 +26,14 @@ Get unix time (nanoseconds) in blazing low latency. About 10x~100x faster than t
 
 ## Performance
 
-**Platform:** 
-
-*MacBook Pro (15-inch, 2017) 2.8 GHz Quad-Core Intel Core i7-7700HQ*
-
-|benchmark           |    time.Now() ns/op   |  tsc ns/op    |     delta   |
-|--------------------|----------------|---------------|-------------|
-|BenchmarkUnixNano-8 |    72.8        |  7.65         | -89.49%     |
-
+|OS           |CPU           |benchmark           |    time.Now().UnixNano() ns/op   |  tsc.UnixNano() ns/op    |     delta   |
+|--------------------|--------------------|--------------------|----------------|---------------|-------------|
+|MacOS Catalina |Intel Core i7-7700HQ| BenchmarkUnixNano-8 |    72.8        |  7.65         | -89.49%     |
+|Ubuntu 18.04 |Intel Core i5-8250U| BenchmarkUnixNano-8 |    47.7       |  8.41         | -82.36%     |
 
 ## Clock Offset
 
-The offset between wall clock and tsc is extremely low (under dozens ns in avg, maximum is hundreds ns), see [test codes](tsc_test.go) for more details.
+The offset between wall clock and tsc is extremely low (under dozens ns in avg, maximum is hundreds-1000 ns), see [test codes](tsc_test.go) for more details.
 
 
 ## Limitation
@@ -60,3 +54,11 @@ The offset between wall clock and tsc is extremely low (under dozens ns in avg, 
 >- AVX supports
 >
 >   Some instructions need AVX, see [tsc_amd64.s](tsc_amd64.s) for details.
+>
+>- No support on virtual machine
+>
+>   Have tested on AWS EC2, because of CPUID.15H is disabled. And tsc may won't work as we expect on a virtual machine.
+>
+>- Handle Limitation
+>
+>   If tsc can't be enabled, it will use time.Now().UnixNano() automatically.
