@@ -1,0 +1,6 @@
+title = "long-drift"
+
+job_time = 60
+interval = 1
+enable_calibrate = false
+calibrate_interval = 900
