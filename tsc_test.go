@@ -2,6 +2,7 @@ package tsc
 
 import (
 	"fmt"
+	"github.com/templexxx/cpu"
 	"math"
 	"testing"
 	"time"
@@ -171,6 +172,14 @@ func BenchmarkUnixNano(b *testing.B) {
 	}
 
 	for i := 0; i < b.N; i++ {
-		_ = UnixNano()
+		//_ = UnixNano()
+		_ = time.Now().UnixNano()
 	}
+}
+
+func TestCPUName(t *testing.T) {
+	fmt.Println(cpu.X86.Name)
+	fmt.Println(cpu.X86.Signature)
+	fmt.Println(cpu.X86.SteppingID)
+	fmt.Println(cpu.X86.TSCFrequency)
 }

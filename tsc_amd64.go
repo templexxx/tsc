@@ -1,6 +1,7 @@
 package tsc
 
 import (
+	"fmt"
 	"math"
 	"sync/atomic"
 	"time"
@@ -9,7 +10,9 @@ import (
 )
 
 var (
-	offset int64 // offset + toNano(tsc) = unix nano.
+	_padding0 = cpu.X86FalseSharingRange
+	offset int64 // offset + toNano(tsc) = unix nano
+	_padding1 = cpu.X86FalseSharingRange
 
 	// coeff(coefficient) * tsc = nano seconds.
 	// coeff is the inverse of TSCFrequency(GHz)
@@ -21,9 +24,26 @@ var (
 func init() {
 	Enabled = enableTSC()
 	if Enabled {
-		calibrate()
+		tsc, wall := getMinDeltaToWall()
+
+		freq := FreqTbl[fmt.Sprintf("%s_%d", cpu.X86.Signature, cpu.X86.SteppingID)]
+		if freq > 0 {	// TSC frequency testing Haven been run.
+			coeff = 1 / float64(freq) / 1e9
+			setOffset(wall, tsc)
+			return
+		}
+
+
+
+
+		calibrateOnce()
 		unixNano = unixNanoTSC
 	}
+}
+
+func setOffset(ns, tsc uint64) {
+	off := ns - uint64(float64(tsc) * coeff)
+	atomic.StoreInt64(&offset, int64(off))
 }
 
 //go:noescape
@@ -41,7 +61,9 @@ func enableTSC() bool {
 		return false
 	}
 
-	if !cpu.X86.HasAVX { // Some instructions need AVX, see tsc_amd64.s for details.
+	// Some instructions need AVX, see tsc_amd64.s for details.
+	// Actually, it's hardly to find a CPU without AVX supports in present. :)
+	if !cpu.X86.HasAVX {
 		return false
 	}
 
@@ -53,6 +75,17 @@ func enableTSC() bool {
 
 	return true
 }
+
+// calibrateTime is the min time to calibrate clocks.
+var calibrateTime = 20 * time.Microsecond
+
+// SetCalibrateTime sets a new min time to calibrate clocks.
+// Warn:
+// Not thread-safe。
+func SetCalibrateTime(t time.Duration) {
+	calibrateTime = t
+}
+
 
 // Calibrate calibrates tsc & wall clock.
 //
@@ -66,10 +99,61 @@ func Calibrate() {
 		return
 	}
 
-	calibrate()
+	calibrateOnce()
 }
 
-func calibrate() {
+// getMinDeltaToWall gets the smallest gap between wall clock and tsc.
+func getMinDeltaToWall() (tsc, wall uint64) {
+	// 1024 is enough for finding lowest wall clock cost in most cases.
+	// Although time.Now() is using VDSO to get time, but it's unstable,
+	// sometimes it will take more than 1000ns,
+	// we have to use a big loop(e.g. 1024) to get the "real" clock.
+	n := 1024
+	timeline := make([]uint64, n+n+1)
+
+	timeline[0] = getInOrder()
+	// [tsc, wc, tsc, wc, ..., tsc]
+	for i := 1; i < len(timeline)-1; i += 2 {
+		timeline[i] = uint64(time.Now().UnixNano())
+		timeline[i+1] = getInOrder()
+	}
+
+	// The minDelta is the smallest gap between two adjacent tscs,
+	// which means the smallest gap between wall clock and tsc too.
+	minDelta := uint64(math.MaxUint64)
+	minIndex := 1 // minIndex is wall clock index where has minDelta.
+
+	// time.Now()'s precision is only µs (on MacOS),
+	// which means we will get multi same wall clock in timeline,
+	// and the middle one is closer to the real time in statistics.
+	// Try to find the minimum delta when wall clock is in the "middle".
+	for i := 1; i < len(timeline)-1; i += 2 {
+		last := timeline[i]
+		for j := i + 2; j < len(timeline)-1; j += 2 {
+			if timeline[j] != last {
+				mid := (i + j - 2) >> 1
+				if isEven(mid) {
+					mid++
+				}
+
+				delta := timeline[mid+1] - timeline[mid-1]
+				if delta < minDelta {
+					minDelta = delta
+					minIndex = mid
+				}
+
+				i = j
+				last = timeline[j]
+			}
+		}
+	}
+
+	tsc = (timeline[minIndex+1] + timeline[minIndex-1]) >> 1
+	wall = timeline[minIndex]
+	return
+}
+
+func calibrateOnce() {
 
 	// 1024 is enough for finding lowest wall clock cost in most cases.
 	// Although time.Now() is using VDSO to get time, but it's unstable,
