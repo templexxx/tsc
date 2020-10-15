@@ -166,3 +166,7 @@ func fastCalibrate() (minDelta, tsc, wall uint64) {
 // It's used for helping calibrate to avoid out-of-order issues.
 //go:noescape
 func getInOrder() uint64
+
+// rdtsc gets tsc value out-of-order.
+//go:noescape
+func rdtsc() uint64

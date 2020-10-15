@@ -1,6 +1,6 @@
 #include "textflag.h"
 
-// func getInOrder() (uint64)
+// func getInOrder() uint64
 TEXT ·getInOrder(SB), NOSPLIT, $0
 
 	LFENCE             // Ensure all previous instructions have exectuted.
@@ -11,7 +11,7 @@ TEXT ·getInOrder(SB), NOSPLIT, $0
 	MOVQ AX, ret+0(FP)
 	RET
 
-// func rdtsc() (uint64)
+// func rdtsc() uint64
 TEXT ·rdtsc(SB), NOSPLIT, $0
 
     RDTSC
@@ -25,7 +25,7 @@ TEXT ·rdtsc(SB), NOSPLIT, $0
 #define ns X1 // nanoseconds
 #define un R8 // unixNano
 
-// func unixNanoTSC() (int64)
+// func unixNanoTSC() int64
 TEXT ·unixNanoTSC(SB), NOSPLIT, $0
 
 	// Both of RSTSC & RDTSCP are not serializing instructions.
