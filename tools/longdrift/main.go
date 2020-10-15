@@ -61,9 +61,12 @@ func (r *runner) doJobLoop() {
 			return
 		}
 		<-ticker.C
-		wall := time.Now()
 		tscT := tsc.UnixNano()
-		fmt.Printf("%s, wall_clock: %d, tsc: %d, delta: %d\n",
-			wall.Format(time.RFC3339Nano), wall.UnixNano(), tscT, tscT-wall.UnixNano())
+		//wall := time.Now()
+		wall := time.Now().UnixNano()
+		//fmt.Printf("%s, wall_clock: %d, tsc: %d, delta: %d\n",
+		//	wall.Format(time.RFC3339Nano), wall.UnixNano(), tscT, tscT-wall.UnixNano())
+		fmt.Printf("wall_clock: %d, tsc: %d, delta: %d\n",
+			wall, tscT, tscT-wall)
 	}
 }

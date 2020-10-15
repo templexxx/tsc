@@ -11,6 +11,15 @@ TEXT ·getInOrder(SB), NOSPLIT, $0
 	MOVQ AX, ret+0(FP)
 	RET
 
+// func rdtsc() (uint64)
+TEXT ·rdtsc(SB), NOSPLIT, $0
+
+    RDTSC
+    SALQ $32, DX
+    ORQ  DX, AX
+    MOVQ AX, ret+0(FP)
+    RET
+
 #define tsc AX
 #define ftsc X0 // float64(tsc)
 #define ns X1 // nanoseconds
