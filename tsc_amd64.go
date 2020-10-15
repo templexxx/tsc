@@ -91,7 +91,7 @@ func enableTSC() bool {
 
 // Calibrate calibrates tsc & wall clock.
 //
-// It's a good practice that run Calibrate periodically (every hour) outside,
+// It's a good practice that run Calibrate periodically (every 10-15mins) outside,
 // because the wall clock may be calibrated (e.g. NTP).
 //
 // If !enabled do nothing.
@@ -101,7 +101,8 @@ func Calibrate() {
 		return
 	}
 
-	calibrateOnce()
+	_, tsc, wall := fastCalibrate()
+	setOffset(wall, tsc)
 }
 
 // fastCalibrate calibrates tsc clock and wall clock fastly,
@@ -159,66 +160,6 @@ func fastCalibrate() (minDelta, tsc, wall uint64) {
 	wall = timeline[minIndex]
 
 	return
-}
-
-func calibrateOnce() {
-
-	// 1024 is enough for finding lowest wall clock cost in most cases.
-	// Although time.Now() is using VDSO to get time, but it's unstable,
-	// sometimes it will take more than 1000ns,
-	// we have to use a big loop(e.g. 1024) to get the "real" clock.
-	n := 256
-	timeline := make([]uint64, n+n+1)
-
-	timeline[0] = getInOrder()
-	// [tsc, wc, tsc, wc, ..., tsc]
-	for i := 1; i < len(timeline)-1; i += 2 {
-		timeline[i] = uint64(time.Now().UnixNano())
-		timeline[i+1] = getInOrder()
-	}
-
-	// The minDelta is the smallest gap between two adjacent tscs,
-	// which means the smallest gap between wall clock and tsc too.
-	minDelta := uint64(math.MaxUint64)
-	minIndex := 1 // minIndex is wall clock index where has minDelta.
-
-	// time.Now()'s precision is only µs (on MacOS),
-	// which means we will get multi same wall clock in timeline,
-	// and the middle one is closer to the real time in statistics.
-	// Try to find the minimum delta when wall clock is in the "middle".
-	for i := 1; i < len(timeline)-1; i += 2 {
-		last := timeline[i]
-		for j := i + 2; j < len(timeline)-1; j += 2 {
-			if timeline[j] != last {
-				mid := (i + j - 2) >> 1
-				if isEven(mid) {
-					mid++
-				}
-
-				delta := timeline[mid+1] - timeline[mid-1]
-				if delta < minDelta {
-					minDelta = delta
-					minIndex = mid
-				}
-
-				i = j
-				last = timeline[j]
-			}
-		}
-	}
-
-	tsc := (timeline[minIndex+1] + timeline[minIndex-1]) >> 1
-	wall := timeline[minIndex]
-
-	// Use atomic to protect offset in periodically Calibrate.
-	atomic.StoreInt64(&offset, int64(wall)-toNano(tsc))
-}
-
-// toNano converts tsc to nanoseconds.
-//
-// Returns 0 if nothing to do.
-func toNano(tsc uint64) int64 {
-	return int64(float64(tsc) * coeff)
 }
 
 // getInOrder gets tsc value in strictly order.
