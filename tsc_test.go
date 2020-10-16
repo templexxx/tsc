@@ -2,7 +2,6 @@ package tsc
 
 import (
 	"fmt"
-	"github.com/templexxx/cpu"
 	"math"
 	"testing"
 	"time"
@@ -172,34 +171,26 @@ func BenchmarkUnixNano(b *testing.B) {
 	}
 
 	for i := 0; i < b.N; i++ {
-		//_ = UnixNano()
-		_ = time.Now().UnixNano()
+		_ = UnixNano()
 	}
 }
 
-func TestCPUName(t *testing.T) {
-	fmt.Println(cpu.X86.Name)
-	fmt.Println(cpu.X86.Signature)
-	fmt.Println(cpu.X86.SteppingID)
-	fmt.Println(cpu.X86.TSCFrequency)
-}
+func TestLongDrift(t *testing.T) {
 
-func TestWallClocks(t *testing.T) {
-	cs := make([]int64, 100)
-	for i := 0; i < 100; i++ {
-		cs[i] = time.Now().UnixNano()
+	if !Enabled {
+		t.Skip("tsc is disabled")
 	}
-	for i := range cs {
-		fmt.Println(cs[i])
+
+	if testing.Short() {
+		t.Skip("skip the test, because it may cost too much time")
 	}
-}
 
-func TestFloat64Uint64(t *testing.T) {
-	var freq uint64 = 3000001814
-	c := 1 / (float64(freq) / 1e9)
-	fmt.Println(1 / c)
+	time.Sleep(time.Minute)
+	tscc := UnixNano()
+	wallc := time.Now().UnixNano()
 
-	cc := math.Float64bits(c)
-	c = math.Float64frombits(cc)
-	fmt.Println(c)
+	if math.Abs(float64(tscc-wallc)) > 20000 { // Which means every hour may have 1ms drift, too much.
+		t.Log(tscc - wallc)
+		t.Fatal("the tsc frequency is too far away from the real, please use tools/gofreq to get the more accurate tsc frequency and write result into FreqTbl")
+	}
 }
