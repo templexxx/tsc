@@ -14,11 +14,13 @@ var (
 	offset    int64 // offset + toNano(tsc) = unix nano
 	_padding1       = cpu.X86FalseSharingRange
 
-	// coeff(coefficient) * tsc = nano seconds.
-	// coeff is the inverse of TSCFrequency(GHz)
+	// Coeff(coefficient) * tsc = nano seconds.
+	// Coeff is the inverse of TSCFrequency(GHz)
 	// for avoiding future dividing.
 	// MUL gets much better perf than DIV.
-	coeff float64 = 0
+	//
+	// Using an uint64 for atomic operation.
+	Coeff uint64 = 0
 )
 
 func init() {
@@ -26,8 +28,9 @@ func init() {
 	if Enabled {
 
 		freq := FreqTbl[fmt.Sprintf("%s_%d", cpu.X86.Signature, cpu.X86.SteppingID)]
-		if freq > 0 { // TSC frequency testing haven been run, using this one and update the coeff.
-			coeff = 1 / float64(freq) / 1e9
+		if freq > 0 { // TSC frequency testing haven been run, using this one and update the Coeff.
+			c := math.Float64bits(1 / (float64(freq) / 1e9))
+			atomic.StoreUint64(&Coeff, c)
 		}
 		var minDelta, minTsc, minWall uint64
 		minDelta = math.MaxUint64
@@ -46,7 +49,8 @@ func init() {
 }
 
 func setOffset(ns, tsc uint64) {
-	off := ns - uint64(float64(tsc)*coeff)
+	c := atomic.LoadUint64(&Coeff)
+	off := ns - uint64(float64(tsc)*math.Float64frombits(c))
 	atomic.StoreInt64(&offset, int64(off))
 }
 
@@ -80,9 +84,10 @@ func enableTSC() bool {
 	// That's why we have to adjust the frequency by tools provided by this project.
 	//
 	// But we still need the frequency because it will be the bench for adjusting.
-	coeff = 1 / (float64(cpu.X86.TSCFrequency) / 1e9)
+	c := math.Float64bits(1 / (float64(cpu.X86.TSCFrequency) / 1e9))
+	atomic.StoreUint64(&Coeff, c)
 
-	if coeff == 0 {
+	if Coeff == 0 {
 		return false
 	}
 

@@ -183,3 +183,23 @@ func TestCPUName(t *testing.T) {
 	fmt.Println(cpu.X86.SteppingID)
 	fmt.Println(cpu.X86.TSCFrequency)
 }
+
+func TestWallClocks(t *testing.T) {
+	cs := make([]int64, 100)
+	for i := 0; i < 100; i++ {
+		cs[i] = time.Now().UnixNano()
+	}
+	for i := range cs {
+		fmt.Println(cs[i])
+	}
+}
+
+func TestFloat64Uint64(t *testing.T) {
+	var freq uint64 = 3000001814
+	c := 1 / (float64(freq) / 1e9)
+	fmt.Println(1 / c)
+
+	cc := math.Float64bits(c)
+	c = math.Float64frombits(cc)
+	fmt.Println(c)
+}

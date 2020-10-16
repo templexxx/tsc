@@ -38,7 +38,7 @@ TEXT ·unixNanoTSC(SB), NOSPLIT, $0
 	ORQ  DX, tsc // -> [DX, tsc] (high, low)
 
 	VCVTSI2SDQ  tsc, ftsc, ftsc      // ftsc = float64(tsc)
-	VMULSD      ·coeff(SB), ftsc, ns // ns = coeff * fstc
+	VMULSD      ·Coeff(SB), ftsc, ns // ns = coeff * fstc
 	VCVTTSD2SIQ ns, un               // un = int64(ns)
 	ADDQ        ·offset(SB), un      // un += offset
 	MOVQ        un, ret+0(FP)

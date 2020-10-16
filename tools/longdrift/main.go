@@ -4,6 +4,8 @@ package main
 
 import (
 	"fmt"
+	"math"
+	"sync/atomic"
 	"time"
 
 	"github.com/templexxx/tsc"
@@ -34,6 +36,8 @@ type runner struct {
 }
 
 func (r *runner) run() {
+
+	fmt.Printf("coeff: %.6f\n", math.Float64frombits(atomic.LoadUint64(&tsc.Coeff)))
 
 	if r.cfg.EnableCalibrate {
 		go func() {

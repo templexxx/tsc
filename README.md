@@ -1,5 +1,5 @@
 # tsc
-Get unix time (nanoseconds) in blazing low latency. About 10x~100x faster than time.Now().UnixNano().
+Get unix time (nanoseconds) in blazing low latency. About 10x~100x faster than time.Now().UnixNano(). 
 
 - __Time Stamp Counter (TSC)__
 
@@ -35,6 +35,9 @@ Get unix time (nanoseconds) in blazing low latency. About 10x~100x faster than t
 
 The offset between wall clock and tsc is extremely low (under dozens ns in avg, maximum is hundreds-1000 ns), see [test codes](tsc_test.go) for more details.
 
+## Warning
+
+If you need really accurate clock, you should run [gofreq](tools/gofreq) first to get TSC frequency, then set the value to [Frequency Table](freqtbl.go).
 
 ## Limitation
 
