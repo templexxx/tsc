@@ -11,8 +11,8 @@ TEXT ·getInOrder(SB), NOSPLIT, $0
 	MOVQ AX, ret+0(FP)
 	RET
 
-// func rdtsc() uint64
-TEXT ·rdtsc(SB), NOSPLIT, $0
+// func RDTSC() uint64
+TEXT ·RDTSC(SB), NOSPLIT, $0
 
     RDTSC
     SALQ $32, DX

@@ -14,7 +14,7 @@ var (
 	offset    int64 // offset + toNano(tsc) = unix nano
 	_padding1       = cpu.X86FalseSharingRange
 
-	// Coeff(coefficient) * tsc = nano seconds.
+	// Coeff (coefficient) * tsc = nano seconds.
 	// Coeff is the inverse of TSCFrequency(GHz)
 	// for avoiding future dividing.
 	// MUL gets much better perf than DIV.
@@ -29,7 +29,7 @@ func init() {
 
 		freq := FreqTbl[fmt.Sprintf("%s_%d", cpu.X86.Signature, cpu.X86.SteppingID)]
 		if freq > 0 { // TSC frequency testing haven been run, using this one and update the Coeff.
-			c := math.Float64bits(1 / (float64(freq) / 1e9))
+			c := math.Float64bits(1 / (freq / 1e9))
 			atomic.StoreUint64(&Coeff, c)
 		}
 		var minDelta, minTsc, minWall uint64
@@ -172,6 +172,6 @@ func fastCalibrate() (minDelta, tsc, wall uint64) {
 //go:noescape
 func getInOrder() uint64
 
-// rdtsc gets tsc value out-of-order.
+// RDTSC gets tsc value out-of-order.
 //go:noescape
-func rdtsc() uint64
+func RDTSC() uint64
