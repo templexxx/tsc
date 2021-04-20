@@ -3,10 +3,11 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/templexxx/cpu"
 	"math"
 	"sort"
 	"time"
+
+	"github.com/templexxx/cpu"
 
 	"github.com/templexxx/tsc"
 )
@@ -26,7 +27,7 @@ func main() {
 	start := time.Now()
 
 	cnt := *round * 1024
-	ret := make([]tscWall, cnt) // Each 10ms has a pair.
+	ret := make([]tscWall, cnt)
 	for i := 0; i < int(cnt); i++ {
 		var minDelta, minTsc, minWall uint64
 		minDelta = math.MaxUint64
