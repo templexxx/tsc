@@ -8,12 +8,12 @@ import (
 	"time"
 
 	"github.com/templexxx/cpu"
-
 	"github.com/templexxx/tsc"
+	"gonum.org/v1/gonum/stat"
 )
 
 var (
-	round = flag.Int64("round", 60, "job rounds")
+	round = flag.Int("round", 60, "job rounds")
 )
 
 func main() {
@@ -26,52 +26,61 @@ func main() {
 
 	start := time.Now()
 
-	cnt := *round * 1024
-	ret := make([]tscWall, cnt)
-	for i := 0; i < int(cnt); i++ {
-		var minDelta, minTsc, minWall uint64
-		minDelta = math.MaxUint64
-		for j := 0; j < 256; j++ { // Try to find the best one.
-			md, tscc, wallc := calibrate(256)
-			if md < minDelta {
-				minDelta = md
-				minTsc = tscc
-				minWall = wallc
+	allFreqs := make([][]float64, *round)
+
+	for k := 0; k < *round; k++ {
+		cnt := 1024 // TODO 1024 good enough?
+		ret := make([]tscWall, cnt)
+		for i := 0; i < cnt; i++ {
+			var minDelta, minTsc, minWall uint64
+			minDelta = math.MaxUint64
+			for j := 0; j < 256; j++ { // Try to find the best one.
+				md, tscc, wallc := calibrate(256)
+				if md < minDelta {
+					minDelta = md
+					minTsc = tscc
+					minWall = wallc
+				}
 			}
+			ret[i] = tscWall{tscc: minTsc, wall: minWall}
 		}
-		ret[i] = tscWall{tscc: minTsc, wall: minWall}
+		freqs := make([]float64, cnt-1)
+		for i := 1; i < cnt; i++ {
+			freq := float64(ret[i].tscc-ret[i-1].tscc) * 1e9 / float64(ret[i].wall-ret[i-1].wall)
+			freqs[i-1] = freq
+		}
+		sort.Float64s(freqs)
+		freqs = freqs[128:]            // Drop min.
+		freqs = freqs[:len(freqs)-128] // Drop max.
+		allFreqs[k] = freqs
 	}
 
-	deltas := make([]tscWallDelta, cnt-1)
-	freqs := make([]float64, cnt-1)
-	for i := 1; i < int(cnt); i++ {
-		deltas[i-1] = tscWallDelta{tscDelta: ret[i].tscc - ret[i-1].tscc,
-			wallDelta: ret[i].wall - ret[i-1].wall}
-		deltas[i-1].freq = float64(deltas[i-1].tscDelta) * 1e9 / float64(deltas[i-1].wallDelta)
-		freqs[i-1] = deltas[i-1].freq
+	minsd := math.MaxFloat64
+	minsdi := 0
+	for i, freqs := range allFreqs {
+		sd := stat.StdDev(freqs, nil)
+		if sd < minsd {
+			minsd = sd
+			minsdi = i
+		}
 	}
 
-	sort.Float64s(freqs)
-
-	freqs = freqs[128:]
-	freqs = freqs[:len(freqs)-128]
+	freqs := allFreqs[minsdi]
 
 	totalFreq := float64(0)
 	for i := range freqs {
 		totalFreq += freqs[i]
 	}
 
+	mode, mcnt := stat.Mode(freqs, nil)
+
 	cost := time.Now().Sub(start)
 
 	cpuFlag := fmt.Sprintf("%s_%d", cpu.X86.Signature, cpu.X86.SteppingID)
 
-	fmt.Printf("cpu: %s freq: %.9f, cost: %.2fs\n", cpuFlag, totalFreq/float64(len(freqs)), cost.Seconds())
-}
-
-type tscWallDelta struct {
-	tscDelta  uint64
-	wallDelta uint64
-	freq      float64
+	fmt.Printf("cpu: %s freq_avg: %.9f, freq_mode&cnt: %.9f; %.2f, freq_mid: %.9f, cost: %.2fs\n", cpuFlag,
+		totalFreq/float64(len(freqs)), mode, mcnt, freqs[len(freqs)/2],
+		cost.Seconds())
 }
 
 type tscWall struct {
