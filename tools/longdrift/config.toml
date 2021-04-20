@@ -1,7 +1,0 @@
-title = "long-drift"
-
-job_time = 600
-interval = 1
-enable_calibrate = false
-calibrate_interval = 900
-Idle = true

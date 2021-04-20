@@ -4,38 +4,52 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
-	"github.com/klauspost/cpuid/v2"
-	"github.com/templexxx/cpu"
 	"runtime"
 	"time"
 
+	"github.com/elastic/go-hdrhistogram"
+	"github.com/klauspost/cpuid/v2"
+	"github.com/templexxx/cpu"
 	"github.com/templexxx/tsc"
-	"github.com/zaibyte/pkg/config"
+)
+
+var (
+	jobTime           = flag.Int64("job_time", 600, "seconds")
+	enableCalibrate   = flag.Bool("enable_calibrate", false, "")
+	calibrateInterval = flag.Int64("calibrate_interval", 30, "seconds")
+	idle              = flag.Bool("idel", true, "")
+	printDelta        = flag.Bool("print", false, "print every second delta")
 )
 
 type Config struct {
-	JobTime           int64 `toml:"job_time"` // Seconds.
-	Interval          int64 `toml:"interval"` // Seconds.
-	EnableCalibrate   bool  `toml:"enable_calibrate"`
-	CalibrateInterval int64 `toml:"calibrate_interval"`
-	Idle              bool  `toml:"idle"`
+	JobTime           int64
+	EnableCalibrate   bool
+	CalibrateInterval time.Duration
+	Idle              bool
+	Print             bool
 }
 
-const _appName = "longdrift"
-
 func main() {
-	config.Init(_appName)
 
-	var cfg Config
-	config.Load(&cfg)
+	flag.Parse()
+
+	cfg := Config{
+		JobTime:           *jobTime,
+		EnableCalibrate:   *enableCalibrate,
+		CalibrateInterval: time.Duration(*calibrateInterval) * time.Second,
+		Idle:              *idle,
+		Print:             *printDelta,
+	}
 
 	r := &runner{cfg: &cfg}
 	r.run()
 }
 
 type runner struct {
-	cfg *Config
+	cfg   *Config
+	delta *hdrhistogram.Histogram
 }
 
 func (r *runner) run() {
@@ -44,6 +58,8 @@ func (r *runner) run() {
 		fmt.Println("tsc unsupported")
 		return
 	}
+
+	r.delta = hdrhistogram.New(-time.Second.Nanoseconds(), time.Second.Nanoseconds(), 3)
 
 	cpuFlag := fmt.Sprintf("%s_%d", cpu.X86.Signature, cpu.X86.SteppingID)
 
@@ -75,6 +91,25 @@ func (r *runner) run() {
 
 	r.doJobLoop()
 	cancel()
+
+	printLat("tsc-wall_clock", r.delta)
+}
+
+func printLat(name string, lats *hdrhistogram.Histogram) {
+	fmt.Println(fmt.Sprintf("%s min: %d, avg: %.2f, max: %d",
+		name, lats.Min(), lats.Mean(), lats.Max()))
+	fmt.Println("percentiles (nsec):")
+	fmt.Print(fmt.Sprintf(
+		"|  1.00th=[%d],  5.00th=[%d], 10.00th=[%d], 20.00th=[%d],\n"+
+			"| 30.00th=[%d], 40.00th=[%d], 50.00th=[%d], 60.00th=[%d],\n"+
+			"| 70.00th=[%d], 80.00th=[%d], 90.00th=[%d], 95.00th=[%d],\n"+
+			"| 99.00th=[%d], 99.50th=[%d], 99.90th=[%d], 99.95th=[%d],\n"+
+			"| 99.99th=[%d]\n",
+		lats.ValueAtQuantile(1), lats.ValueAtQuantile(5), lats.ValueAtQuantile(10), lats.ValueAtQuantile(20),
+		lats.ValueAtQuantile(30), lats.ValueAtQuantile(40), lats.ValueAtQuantile(50), lats.ValueAtQuantile(60),
+		lats.ValueAtQuantile(70), lats.ValueAtQuantile(80), lats.ValueAtQuantile(90), lats.ValueAtQuantile(95),
+		lats.ValueAtQuantile(99), lats.ValueAtQuantile(99.5), lats.ValueAtQuantile(99.9), lats.ValueAtQuantile(99.95),
+		lats.ValueAtQuantile(99.99)))
 }
 
 func takeCPU(ctx context.Context, idle bool) {
@@ -113,7 +148,7 @@ func takeCPU(ctx context.Context, idle bool) {
 }
 
 func (r *runner) doJobLoop() {
-	ticker := time.NewTicker(time.Duration(r.cfg.Interval) * time.Second)
+	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 
 	end := time.Now().Add(time.Duration(r.cfg.JobTime) * time.Second)
@@ -125,7 +160,11 @@ func (r *runner) doJobLoop() {
 		<-ticker.C
 		tscT := tsc.UnixNano()
 		wall := time.Now().UnixNano()
-		fmt.Printf("wall_clock: %d, tsc: %d, delta: %.2fus\n",
-			wall, tscT, float64(tscT-wall)/float64(time.Microsecond))
+		delta := tscT - wall
+		_ = r.delta.RecordValueAtomic(delta)
+		if r.cfg.Print {
+			fmt.Printf("wall_clock: %d, tsc: %d, delta: %.2fus\n",
+				wall, tscT, float64(delta)/float64(time.Microsecond))
+		}
 	}
 }
