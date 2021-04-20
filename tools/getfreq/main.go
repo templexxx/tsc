@@ -65,7 +65,7 @@ func main() {
 
 	cpuFlag := fmt.Sprintf("%s_%d", cpu.X86.Signature, cpu.X86.SteppingID)
 
-	fmt.Printf("cpu: %s freq: %.2f, cost: %.2fs\n", cpuFlag, totalFreq/float64(len(freqs)), cost.Seconds())
+	fmt.Printf("cpu: %s freq: %.9f, cost: %.2fs\n", cpuFlag, totalFreq/float64(len(freqs)), cost.Seconds())
 }
 
 type tscWallDelta struct {
