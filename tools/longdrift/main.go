@@ -73,7 +73,7 @@ func (r *runner) run() {
 			ctx2, cancel2 := context.WithCancel(ctx)
 			defer cancel2()
 
-			ticker := time.NewTicker(time.Duration(r.cfg.CalibrateInterval) * time.Second)
+			ticker := time.NewTicker(r.cfg.CalibrateInterval)
 			defer ticker.Stop()
 
 			for {
