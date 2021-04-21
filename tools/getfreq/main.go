@@ -83,7 +83,7 @@ func main() {
 		totalFreq/float64(len(freqs)), mode, mcnt, freqs[len(freqs)/2],
 		cost.Seconds())
 	fmt.Println("-------")
-	fmt.Printf("origin freq is: %.9f", 1e9/math.Float64frombits(atomic.LoadUint64(&tsc.Coeff)))
+	fmt.Printf("origin freq is: %.9f\n", 1e9/math.Float64frombits(atomic.LoadUint64(&tsc.Coeff)))
 }
 
 type tscWall struct {
