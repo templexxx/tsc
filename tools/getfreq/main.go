@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"sort"
+	"sync/atomic"
 	"time"
 
 	"github.com/templexxx/cpu"
@@ -78,9 +79,11 @@ func main() {
 
 	cpuFlag := fmt.Sprintf("%s_%d", cpu.X86.Signature, cpu.X86.SteppingID)
 
-	fmt.Printf("cpu: %s freq_avg: %.9f, freq_mode&cnt: %.9f; %.2f, freq_mid: %.9f, cost: %.2fs\n", cpuFlag,
+	fmt.Printf("cpu: %s freq_avg: %.9f, freq_mode&cnt: %.9f; %.2f, freq_mid: %.9f, job cost: %.2fs\n", cpuFlag,
 		totalFreq/float64(len(freqs)), mode, mcnt, freqs[len(freqs)/2],
 		cost.Seconds())
+	fmt.Println("-------")
+	fmt.Printf("origin freq is: %.9f", 1e9/math.Float64frombits(atomic.LoadUint64(&tsc.Coeff)))
 }
 
 type tscWall struct {
