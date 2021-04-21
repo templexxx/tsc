@@ -153,18 +153,28 @@ func (r *runner) doJobLoop() {
 
 	end := time.Now().Add(time.Duration(r.cfg.JobTime) * time.Second)
 
+	cnt := 0
+	delta, first, last := int64(0), int64(0), int64(0)
 	for {
 		if time.Now().After(end) {
-			return
+			last = delta
+			break
 		}
 		<-ticker.C
 		tscT := tsc.UnixNano()
 		wall := time.Now().UnixNano()
-		delta := tscT - wall
+		delta = tscT - wall
 		_ = r.delta.RecordValueAtomic(delta)
 		if r.cfg.Print {
 			fmt.Printf("wall_clock: %d, tsc: %d, delta: %.2fus\n",
 				wall, tscT, float64(delta)/float64(time.Microsecond))
 		}
+		if cnt == 0 {
+			first = delta
+		}
+		cnt++
 	}
+	fmt.Printf("first_delta: %.2fus, last_delta: %.2fus\n",
+		float64(first)/float64(time.Microsecond),
+		float64(last)/float64(time.Microsecond))
 }
