@@ -7,6 +7,7 @@ import (
 	"flag"
 	"fmt"
 	"runtime"
+	"sync"
 	"time"
 
 	"github.com/elastic/go-hdrhistogram"
@@ -21,6 +22,7 @@ var (
 	calibrateInterval = flag.Int64("calibrate_interval", 30, "seconds")
 	idle              = flag.Bool("idle", true, "")
 	printDelta        = flag.Bool("print", false, "print every second delta")
+	threads           = flag.Int("threads", 1, "")
 )
 
 type Config struct {
@@ -29,6 +31,7 @@ type Config struct {
 	CalibrateInterval time.Duration
 	Idle              bool
 	Print             bool
+	Threads           int
 }
 
 func main() {
@@ -41,6 +44,7 @@ func main() {
 		CalibrateInterval: time.Duration(*calibrateInterval) * time.Second,
 		Idle:              *idle,
 		Print:             *printDelta,
+		Threads:           *threads,
 	}
 
 	r := &runner{cfg: &cfg}
@@ -89,7 +93,13 @@ func (r *runner) run() {
 
 	go takeCPU(ctx, r.cfg.Idle)
 
-	r.doJobLoop()
+	wg := new(sync.WaitGroup)
+	wg.Add(r.cfg.Threads)
+
+	for i := 0; i < r.cfg.Threads; i++ {
+		go r.doJobLoop(i, wg)
+	}
+	wg.Wait()
 	cancel()
 
 	printLat("tsc-wall_clock", r.delta)
@@ -147,7 +157,9 @@ func takeCPU(ctx context.Context, idle bool) {
 	}
 }
 
-func (r *runner) doJobLoop() {
+func (r *runner) doJobLoop(thread int, wg *sync.WaitGroup) {
+	defer wg.Done()
+
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 
@@ -174,7 +186,8 @@ func (r *runner) doJobLoop() {
 		}
 		cnt++
 	}
-	fmt.Printf("first_delta: %.2fus, last_delta: %.2fus\n",
+	fmt.Printf("thread: %d, first_delta: %.2fus, last_delta: %.2fus\n",
+		thread,
 		float64(first)/float64(time.Microsecond),
 		float64(last)/float64(time.Microsecond))
 }
