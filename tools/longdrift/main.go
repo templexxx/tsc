@@ -19,7 +19,7 @@ var (
 	jobTime           = flag.Int64("job_time", 600, "seconds")
 	enableCalibrate   = flag.Bool("enable_calibrate", false, "")
 	calibrateInterval = flag.Int64("calibrate_interval", 30, "seconds")
-	idle              = flag.Bool("idel", true, "")
+	idle              = flag.Bool("idle", true, "")
 	printDelta        = flag.Bool("print", false, "print every second delta")
 )
 
