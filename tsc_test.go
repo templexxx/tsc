@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-// Out-of-Order test, getInOrder should be in order as we assume.
+// Out-of-Order test, GetInOrder should be in order as we assume.
 func TestGetInOrder(t *testing.T) {
 
 	if !Enabled {
@@ -19,8 +19,8 @@ func TestGetInOrder(t *testing.T) {
 	ret1 := make([]uint64, n)
 
 	for i := range ret0 {
-		ret0[i] = getInOrder()
-		ret1[i] = getInOrder()
+		ret0[i] = GetInOrder()
+		ret1[i] = GetInOrder()
 	}
 
 	cnt := 0
@@ -31,7 +31,7 @@ func TestGetInOrder(t *testing.T) {
 		}
 	}
 	if cnt > 0 {
-		t.Fatal(fmt.Sprintf("getInOrder is not in order: %d aren't in order", cnt))
+		t.Fatal(fmt.Sprintf("GetInOrder is not in order: %d aren't in order", cnt))
 	}
 }
 
@@ -160,7 +160,7 @@ func BenchmarkGetInOrder(b *testing.B) {
 	}
 
 	for i := 0; i < b.N; i++ {
-		_ = getInOrder()
+		_ = GetInOrder()
 	}
 }
 

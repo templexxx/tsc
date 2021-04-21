@@ -125,10 +125,10 @@ func fastCalibrate() (minDelta, tsc, wall uint64) {
 	// [tsc, wc, tsc, wc, ..., tsc]
 	timeline := make([]uint64, n+n+1)
 
-	timeline[0] = RDTSC() // TODO try to use not order
+	timeline[0] = GetInOrder() // TODO try to use not order
 	for i := 1; i < len(timeline)-1; i += 2 {
 		timeline[i] = uint64(time.Now().UnixNano())
-		timeline[i+1] = RDTSC()
+		timeline[i+1] = GetInOrder()
 	}
 
 	// The minDelta is the smallest gap between two adjacent tscs,
@@ -167,10 +167,10 @@ func fastCalibrate() (minDelta, tsc, wall uint64) {
 	return
 }
 
-// getInOrder gets tsc value in strictly order.
+// GetInOrder gets tsc value in strictly order.
 // It's used for helping calibrate to avoid out-of-order issues.
 //go:noescape
-func getInOrder() uint64
+func GetInOrder() uint64
 
 // RDTSC gets tsc value out-of-order.
 //go:noescape

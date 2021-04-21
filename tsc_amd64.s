@@ -1,7 +1,7 @@
 #include "textflag.h"
 
-// func getInOrder() uint64
-TEXT ·getInOrder(SB), NOSPLIT, $0
+// func GetInOrder() uint64
+TEXT ·GetInOrder(SB), NOSPLIT, $0
 
 	LFENCE             // Ensure all previous instructions have exectuted.
 	RDTSC

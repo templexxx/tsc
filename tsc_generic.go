@@ -13,7 +13,7 @@ func Calibrate() {
 	return
 }
 
-// getInOrder gets tsc value in strictly order.
+// GetInOrder gets tsc value in strictly order.
 // It's used for helping calibrate to avoid out-of-order issues.
 func getInOrder() uint64 {
 	return 0

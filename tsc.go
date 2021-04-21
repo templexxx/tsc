@@ -24,7 +24,7 @@ import "time"
 // Go is not designed for HPC, and it's own benchmark testing is
 // enough in most cases. I think I should go further to explore to
 // make sure it's best practice for counting cycles.
-// See getInOrder in tsc_amd64.s for more details.
+// See GetInOrder in tsc_amd64.s for more details.
 func UnixNano() int64 {
 	return unixNano()
 }
