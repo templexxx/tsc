@@ -1,7 +1,6 @@
 package tsc
 
 import (
-	"fmt"
 	"math"
 	"sync/atomic"
 	"time"
@@ -10,28 +9,23 @@ import (
 )
 
 var (
+	// padding for reducing cache pollution.
 	_padding0 = cpu.X86FalseSharingRange
 	offset    int64 // offset + toNano(tsc) = unix nano
-	_padding1       = cpu.X86FalseSharingRange
-
 	// Coeff (coefficient) * tsc = nano seconds.
 	// Coeff is the inverse of TSCFrequency(GHz)
 	// for avoiding future dividing.
 	// MUL gets much better perf than DIV.
 	//
 	// Using an uint64 for atomic operation.
-	Coeff uint64 = 0
+	Coeff     uint64 = 0
+	_padding1        = cpu.X86FalseSharingRange
 )
 
 func init() {
 	Enabled = enableTSC()
 	if Enabled {
 
-		freq := FreqTbl[fmt.Sprintf("%s_%d", cpu.X86.Signature, cpu.X86.SteppingID)]
-		if freq > 0 { // TSC frequency testing haven been run, using this one and update the Coeff.
-			c := math.Float64bits(1 / (freq / 1e9))
-			atomic.StoreUint64(&Coeff, c)
-		}
 		var minDelta, minTsc, minWall uint64
 		minDelta = math.MaxUint64
 		for i := 0; i < 256; i++ { // Try to find the best one.

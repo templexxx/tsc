@@ -84,6 +84,7 @@ func main() {
 		cost.Seconds())
 	fmt.Println("-------")
 	fmt.Printf("origin freq is: %.9f\n", 1e9/math.Float64frombits(atomic.LoadUint64(&tsc.Coeff)))
+	fmt.Println("=======")
 }
 
 type tscWall struct {

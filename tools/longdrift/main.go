@@ -9,6 +9,7 @@ import (
 	"math"
 	"runtime"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/elastic/go-hdrhistogram"
@@ -68,7 +69,7 @@ func (r *runner) run() {
 
 	cpuFlag := fmt.Sprintf("%s_%d", cpu.X86.Signature, cpu.X86.SteppingID)
 
-	fmt.Printf("cpu: %s, tsc_freq: %.2f\n", cpuFlag, tsc.FreqTbl[cpuFlag])
+	fmt.Printf("cpu: %s, tsc_freq: %.9f\n", cpuFlag, 1e9/math.Float64frombits(atomic.LoadUint64(&tsc.Coeff)))
 
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -109,7 +110,7 @@ func (r *runner) run() {
 func printLat(name string, lats *hdrhistogram.Histogram) {
 	fmt.Println(fmt.Sprintf("%s min: %d, avg: %.2f, max: %d",
 		name, lats.Min(), lats.Mean(), lats.Max()))
-	fmt.Println("percentiles (nsec):")
+	fmt.Println("delta(abs) percentiles (nsec):")
 	fmt.Print(fmt.Sprintf(
 		"|  1.00th=[%d],  5.00th=[%d], 10.00th=[%d], 20.00th=[%d],\n"+
 			"| 30.00th=[%d], 40.00th=[%d], 50.00th=[%d], 60.00th=[%d],\n"+

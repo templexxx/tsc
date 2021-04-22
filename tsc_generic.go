@@ -15,6 +15,15 @@ func Calibrate() {
 
 // GetInOrder gets tsc value in strictly order.
 // It's used for helping calibrate to avoid out-of-order issues.
-func getInOrder() uint64 {
+//
+// For non-amd64, just return 0.
+func GetInOrder() uint64 {
+	return 0
+}
+
+// GetInOrder gets tsc value in strictly order.
+// It's used for helping calibrate to avoid out-of-order issues.
+// For non-amd64, just return 0.
+func GetInOrder() uint64 {
 	return 0
 }
