@@ -2,6 +2,8 @@ package tsc
 
 import (
 	"math"
+	"os"
+	"strconv"
 	"sync/atomic"
 	"time"
 
@@ -12,6 +14,7 @@ var (
 	// padding for reducing cache pollution.
 	_padding0 = cpu.X86FalseSharingRange
 	offset    int64 // offset + toNano(tsc) = unix nano
+	_padding1       = cpu.X86FalseSharingRange
 	// Coeff (coefficient) * tsc = nano seconds.
 	// Coeff is the inverse of TSCFrequency(GHz)
 	// for avoiding future dividing.
@@ -19,7 +22,7 @@ var (
 	//
 	// Using an uint64 for atomic operation.
 	Coeff     uint64 = 0
-	_padding1        = cpu.X86FalseSharingRange
+	_padding2        = cpu.X86FalseSharingRange
 )
 
 func init() {
@@ -52,6 +55,10 @@ func setOffset(ns, tsc uint64) {
 //go:noescape
 func unixNanoTSC() int64
 
+// FreqEnv is the TSC frequency calculated by tools/getfreq or other tool.
+// It'll help
+const FreqEnv = "TSC_FREQ_X"
+
 // enable TSC or not.
 func enableTSC() bool {
 	// Invariant TSC could make sure TSC got synced among multi CPUs.
@@ -60,14 +67,25 @@ func enableTSC() bool {
 		return false
 	}
 
+	// Cannot get TSC frequency by CPU feature detection, may caused by:
+	// 1. New CPU which I haven't updated the its crystal frequency. Please raise a issue, thank you.
+	// 2. Virtual environment
 	if cpu.X86.TSCFrequency == 0 {
 		return false
 	}
 
 	// Some instructions need AVX, see tsc_amd64.s for details.
 	// Actually, it's hardly to find a CPU without AVX supports in present. :)
+	// And it's weird that a CPU has invariant TSC but doesn't have AVX.vbfg
 	if !cpu.X86.HasAVX {
 		return false
+	}
+
+	freq := fpFromEnv(FreqEnv)
+	FreqSource = EnvSource
+	if freq == 0 {
+		freq = float64(cpu.X86.TSCFrequency)
+		FreqSource = CPUFeatureSource
 	}
 
 	// The frequency provided by Intel manual is not that reliable,
@@ -78,7 +96,7 @@ func enableTSC() bool {
 	// That's why we have to adjust the frequency by tools provided by this project.
 	//
 	// But we still need the frequency because it will be the bench for adjusting.
-	c := math.Float64bits(1 / (float64(cpu.X86.TSCFrequency) / 1e9))
+	c := math.Float64bits(1 / (freq / 1e9))
 	atomic.StoreUint64(&Coeff, c)
 
 	if Coeff == 0 {
@@ -86,6 +104,15 @@ func enableTSC() bool {
 	}
 
 	return true
+}
+
+func fpFromEnv(name string) float64 {
+	s := os.Getenv(name)
+	v, err := strconv.ParseFloat(s, 64)
+	if err != nil {
+		return 0
+	}
+	return v
 }
 
 // Calibrate calibrates tsc & wall clock.

@@ -19,12 +19,13 @@ import (
 )
 
 var (
-	jobTime           = flag.Int64("job_time", 600, "seconds")
-	enableCalibrate   = flag.Bool("enable_calibrate", false, "")
-	calibrateInterval = flag.Int64("calibrate_interval", 30, "seconds")
-	idle              = flag.Bool("idle", true, "")
+	jobTime           = flag.Int64("job_time", 600, "unit: seconds")
+	enableCalibrate   = flag.Bool("enable_calibrate", false, "enable calibrate will help to catch up system clock")
+	calibrateInterval = flag.Int64("calibrate_interval", 30, "unit: seconds")
+	idle              = flag.Bool("idle", true, "if false it will run empty loops on each cores, try to simulate a busy cpu")
 	printDelta        = flag.Bool("print", false, "print every second delta")
-	threads           = flag.Int("threads", 1, "")
+	threads           = flag.Int("threads", 1, "try to run comparing on multi cores")
+	tscFreq           = flag.Float64("freq", 0, "tsc frequency")
 )
 
 type Config struct {
@@ -34,6 +35,8 @@ type Config struct {
 	Idle              bool
 	Print             bool
 	Threads           int
+	TSCFreq           float64
+	Source            string
 }
 
 func main() {
@@ -65,11 +68,20 @@ func (r *runner) run() {
 		return
 	}
 
+	freq := *tscFreq
+	if freq != 0 {
+		r.cfg.TSCFreq = freq
+		r.cfg.Source = "option"
+	} else {
+		r.cfg.TSCFreq = 1e9 / math.Float64frombits(atomic.LoadUint64(&tsc.Coeff))
+		r.cfg.Source = tsc.FreqSource
+	}
+
 	r.delta = hdrhistogram.New(-time.Second.Nanoseconds(), time.Second.Nanoseconds(), 3)
 
 	cpuFlag := fmt.Sprintf("%s_%d", cpu.X86.Signature, cpu.X86.SteppingID)
 
-	fmt.Printf("cpu: %s, tsc_freq: %.9f\n", cpuFlag, 1e9/math.Float64frombits(atomic.LoadUint64(&tsc.Coeff)))
+	fmt.Printf("cpu: %s, tsc_freq: %.9f, source: %s\n", cpuFlag, r.cfg.TSCFreq, r.cfg.Source)
 
 	ctx, cancel := context.WithCancel(context.Background())
 

@@ -37,6 +37,16 @@ var unixNano = func() int64 {
 // If true, use tsc time. Otherwise, use time.Now().
 var Enabled = false
 
+// FreqSource is the source of tsc frequency.
+var FreqSource = ""
+
+const (
+	// EnvSource means this lib gets tsc frequency from environment variable.
+	EnvSource = "env"
+	// CPUFeatureSource means this lib gets tsc frequency from https://github.com/templexxx/cpu
+	CPUFeatureSource = "cpu_feat"
+)
+
 func isEven(n int) bool {
 	return n&1 == 0
 }
