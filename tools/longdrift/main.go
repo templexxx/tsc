@@ -6,6 +6,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"math"
 	"runtime"
 	"sync"
 	"time"
@@ -176,7 +177,7 @@ func (r *runner) doJobLoop(thread int, wg *sync.WaitGroup) {
 		tscT := tsc.UnixNano()
 		wall := time.Now().UnixNano()
 		delta = tscT - wall
-		_ = r.delta.RecordValueAtomic(delta)
+		_ = r.delta.RecordValueAtomic(int64(math.Abs(float64(delta))))
 		if r.cfg.Print {
 			fmt.Printf("wall_clock: %d, tsc: %d, delta: %.2fus\n",
 				wall, tscT, float64(delta)/float64(time.Microsecond))
