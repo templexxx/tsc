@@ -20,7 +20,7 @@ var (
 func main() {
 	flag.Parse()
 
-	if !tsc.Enabled {
+	if !tsc.Enabled() {
 		fmt.Println("tsc unsupported")
 		return
 	}
