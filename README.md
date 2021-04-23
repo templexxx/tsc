@@ -40,7 +40,7 @@ to testing the frequency. You could find the best interval for invoking `tsc.Cal
 After testing, you should set env_var(`TSC_FREQ_X`) to the best frequency for each server.
 
 If your application doesn't care the accuracy of clock too much, you could invoke `tsc.ResetEnabled(true)` for allowing unstable frequency.
-Although it's "unstable", we still run a simple checking for ensuring the result won't be too bad.
+Although it's "unstable", we still run a simple checking for ensuring the result won't be too bad. 
 
 ## Usage
 

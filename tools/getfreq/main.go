@@ -25,6 +25,8 @@ func main() {
 		return
 	}
 
+	tsc.ResetEnabled(true)
+
 	start := time.Now()
 
 	allFreqs := make([][]float64, *round)
