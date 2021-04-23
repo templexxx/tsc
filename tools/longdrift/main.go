@@ -64,7 +64,7 @@ type runner struct {
 func (r *runner) run() {
 
 	if !tsc.Enabled() {
-		fmt.Println("tsc unsupported")
+		fmt.Println("tsc not enabled")
 		return
 	}
 
