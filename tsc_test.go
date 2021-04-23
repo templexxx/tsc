@@ -180,6 +180,13 @@ func BenchmarkUnixNano(b *testing.B) {
 	}
 }
 
+func BenchmarkStdTime(b *testing.B) {
+
+	for i := 0; i < b.N; i++ {
+		_ = time.Now().UnixNano()
+	}
+}
+
 func TestFastCheckDrift(t *testing.T) {
 
 	if !Enabled() {
