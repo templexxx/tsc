@@ -30,14 +30,32 @@ Get unix time (nanoseconds) in blazing low latency. About 10x~100x faster than t
 |--------------------|--------------------|--------------------|----------------|---------------|-------------|
 |MacOS Catalina |Intel Core i7-7700HQ| BenchmarkUnixNano-8 |    72.8        |  7.65         | -89.49%     |
 |Ubuntu 18.04 |Intel Core i5-8250U| BenchmarkUnixNano-8 |    47.7       |  8.41         | -82.36%     |
+|Ubuntu 20.04 |Intel Core i9-9920X| BenchmarkUnixNano-8 |    36.5       |  6.19         | -83.04%     |
 
-## Clock Offset
+## Preparation
 
-The offset between wall clock and tsc is extremely low (under dozens ns in avg, maximum is hundreds-1000 ns), see [test codes](tsc_test.go) for more details.
+If you need a really accurate clock, you should run [getfreq](tools/getfreq) first to get TSC frequency, then use [longdrift](tools/longdrift)
+to testing the frequency. You could find the best interval for invoking `tsc.Calibrate()` by [longdrift](tools/longdrift) too.
+
+After testing, you should set env_var(`TSC_FREQ_X`) to the best frequency for each server.
+
+If your application doesn't care the accuracy of clock too much, you could invoke `tsc.ResetEnabled(true)` for allowing unstable frequency.
+Although it's "unstable", we still run a simple checking for ensuring the result won't be too bad.
 
 ## Usage
 
-If you need a really accurate clock, you should run [getfreq](tools/getfreq) first to get TSC frequency, then set the value to [Frequency Table](freqtbl.go).
+```go
+package main
+
+import "github.com/templexxx/tsc"
+
+func main() {
+	ts := tsc.UnixNano()   
+	...
+}
+```
+
+If `tsc.Enabled() == true`, it'll use tsc register. If not, it'll wrap `time.Now().UnixNano()`.
 
 ## Warning
 
@@ -51,6 +69,10 @@ different options at least one day.)
 
 ## Limitation
 
+>- Linux Only
+> 
+>   The precision of clock on Windows or macOS could not satisfy the tsc frequency detection well enough.
+> 
 >- Intel Only
 >
 >   Only tested on Intel platform.
