@@ -1,15 +1,12 @@
 package tsc
 
 import (
-	"fmt"
 	"math"
 	"os"
 	"sort"
 	"strconv"
 	"sync/atomic"
 	"time"
-
-	"gonum.org/v1/gonum/stat"
 
 	"github.com/templexxx/cpu"
 )
@@ -104,11 +101,12 @@ func enableTSC() bool {
 	if c == 0 {
 		return false
 	}
+
 	atomic.StoreUint64(&Coeff, c)
 
 	var minDelta, minTsc, minWall uint64
 	minDelta = math.MaxUint64
-	for i := 0; i < 256; i++ { // Try to find the best one.
+	for i := 0; i < 1024; i++ { // Try to find the best one.
 		md, tsc, wall := fastCalibrate()
 		if md < minDelta {
 			minDelta = md
@@ -119,18 +117,22 @@ func enableTSC() bool {
 
 	setOffset(minWall, minTsc)
 
+	if !checkDrift() {
+		return false
+	}
+
 	return true
 }
 
 func getFreqNonEnv() float64 {
 	ff := getFreqFast()
-	if checkDrift(ff) {
+	if ff != 0 {
 		FreqSource = FastDetectSource
 		return ff
 	}
 
 	cf := float64(cpu.X86.TSCFrequency)
-	if checkDrift(cf) {
+	if cf != 0 {
 		FreqSource = CPUFeatureSource
 		return cf
 	}
@@ -142,19 +144,13 @@ func getFreqNonEnv() float64 {
 // checkDrift checks tsc clock & system clock drift in a fast way.
 // Expect < 10us/s.
 // Return true if pass.
-func checkDrift(freq float64) bool {
-	c := math.Float64bits(1 / (freq / 1e9))
-	if c == 0 {
-		return false
-	}
-	atomic.StoreUint64(&Coeff, c)
+func checkDrift() bool {
 
 	time.Sleep(time.Second)
 	tscc := unixNanoTSC()
 	wallc := time.Now().UnixNano()
 
-	if math.Abs(float64(tscc-wallc)) > 10000 { // Which means every 15min may have 4.5ms drift, too much.
-		fmt.Println("shit", math.Abs(float64(tscc-wallc)))
+	if math.Abs(float64(tscc-wallc)) > 10000 { // Which means every 1s may have 10us drift, too much.
 		return false
 	}
 	return false
@@ -167,46 +163,29 @@ type tscWall struct {
 
 // getFreqFast gets tsc frequecny with a fast detection.
 func getFreqFast() float64 {
-	round := 2
 
-	allFreqs := make([][]float64, round)
-
+	round := 16
+	freqs := make([]float64, round-1)
+	ret := make([]tscWall, round)
 	for k := 0; k < round; k++ {
-		cnt := 1024 // TODO 1024 good enough?
-		ret := make([]tscWall, cnt)
-		for i := 0; i < cnt; i++ {
-			_, tscc, wallc := fastCalibrate()
-			ret[i] = tscWall{tscc: tscc, wall: wallc}
-		}
-		freqs := make([]float64, cnt-1)
-		for i := 1; i < cnt; i++ {
-			freq := float64(ret[i].tscc-ret[i-1].tscc) * 1e9 / float64(ret[i].wall-ret[i-1].wall)
-			freqs[i-1] = freq
-		}
-		sort.Float64s(freqs)
-		freqs = freqs[128:]            // Drop min.
-		freqs = freqs[:len(freqs)-128] // Drop max.
-		allFreqs[k] = freqs
+		_, tscc, wallc := fastCalibrate()
+		ret[k] = tscWall{tscc: tscc, wall: wallc}
+		time.Sleep(time.Millisecond)
 	}
 
-	minsd := math.MaxFloat64
-	minsdi := 0
-	for i, freqs := range allFreqs {
-		sd := stat.StdDev(freqs, nil)
-		if sd < minsd {
-			minsd = sd
-			minsdi = i
-		}
+	for i := 1; i < round; i++ {
+		freq := float64(ret[i].tscc-ret[i-1].tscc) * 1e9 / float64(ret[i].wall-ret[i-1].wall)
+		freqs[i-1] = freq
 	}
 
-	freqs := allFreqs[minsdi]
+	sort.Float64s(freqs)
+	freqs = freqs[1:]
+	freqs = freqs[:len(freqs)-1]
 
 	totalFreq := float64(0)
 	for i := range freqs {
 		totalFreq += freqs[i]
 	}
-
-	setOffset(minWall, minTsc)
 
 	return totalFreq / float64(len(freqs))
 }
