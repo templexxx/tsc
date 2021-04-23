@@ -51,10 +51,6 @@ func setOffset(ns, tsc uint64) {
 //go:noescape
 func unixNanoTSC() int64
 
-// FreqEnv is the TSC frequency calculated by tools/getfreq or other tool.
-// It'll help
-const FreqEnv = "TSC_FREQ_X"
-
 // enable TSC or not.
 func enableTSC() bool {
 	// Invariant TSC could make sure TSC got synced among multi CPUs.
@@ -153,7 +149,7 @@ func checkDrift() bool {
 	if math.Abs(float64(tscc-wallc)) > 10000 { // Which means every 1s may have 10us drift, too much.
 		return false
 	}
-	return false
+	return true
 }
 
 type tscWall struct {

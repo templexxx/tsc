@@ -5,6 +5,10 @@ import (
 	"time"
 )
 
+// FreqEnv is the TSC frequency calculated by tools/getfreq or other tool.
+// It'll help
+const FreqEnv = "TSC_FREQ_X"
+
 // UnixNano returns t as a Unix time, the number of nanoseconds elapsed
 // since January 1, 1970 UTC.
 //
@@ -69,7 +73,13 @@ func AllowUnstableFreq() bool {
 
 // ResetEnabled tries to reset Enabled by passing allow UnstableFreq.
 // Return true, if Enabled.
+// Do nothing, if already Enabled.
 func ResetEnabled(allow bool) bool {
+
+	if Enabled() {
+		return true
+	}
+
 	if allow == false {
 		atomic.StoreInt64(&allowUnstableFreq, 0)
 	} else {
