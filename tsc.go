@@ -1,6 +1,9 @@
 package tsc
 
-import "time"
+import (
+	"sync/atomic"
+	"time"
+)
 
 // UnixNano returns t as a Unix time, the number of nanoseconds elapsed
 // since January 1, 1970 UTC.
@@ -33,11 +36,50 @@ var unixNano = func() int64 {
 	return time.Now().UnixNano()
 }
 
-// Enabled indicates tsc could work or not.
+var (
+	enabled int64 = 0
+)
+
+// Enabled indicates tsc could work or not(using TSC register as clock source).
 // If true, use tsc time. Otherwise, use time.Now().
-var Enabled = false
+func Enabled() bool {
+	return atomic.LoadInt64(&enabled) == 1
+}
+
+var (
+	supported int64 = 0
+)
+
+// Supported indicates Invariant TSC supported.
+// But may still be !Enabled because lacking of stable tsc frequency.
+func Supported() bool {
+	return atomic.LoadInt64(&supported) == 1
+}
+
+var (
+	allowUnstableFreq int64 = 0
+)
+
+// AllowUnstableFreq allows to get tsc frequency at starting in a fast way(without long run testing),
+// it's useful for an application which doesn't need accurate clock but just want the speed of getting
+// timestamp could be faster.
+func AllowUnstableFreq() bool {
+	return atomic.LoadInt64(&allowUnstableFreq) == 1
+}
+
+// ResetEnabled tries to reset Enabled by passing allow UnstableFreq.
+// Return true, if Enabled.
+func ResetEnabled(allow bool) bool {
+	if allow == false {
+		atomic.StoreInt64(&allowUnstableFreq, 0)
+	} else {
+		atomic.StoreInt64(&allowUnstableFreq, 1)
+	}
+	return reset()
+}
 
 // FreqSource is the source of tsc frequency.
+// Empty means no available source, tsc is !Enabled.
 var FreqSource = ""
 
 const (
@@ -45,6 +87,8 @@ const (
 	EnvSource = "env"
 	// CPUFeatureSource means this lib gets tsc frequency from https://github.com/templexxx/cpu
 	CPUFeatureSource = "cpu_feat"
+	// FastDetectSource means this lib get tsc frequency from a fast detection.
+	FastDetectSource = "fast_detect"
 )
 
 func isEven(n int) bool {

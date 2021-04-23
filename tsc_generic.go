@@ -21,6 +21,10 @@ func GetInOrder() uint64 {
 	return 0
 }
 
+func reset() bool {
+	return false
+}
+
 // GetInOrder gets tsc value in strictly order.
 // It's used for helping calibrate to avoid out-of-order issues.
 // For non-amd64, just return 0.

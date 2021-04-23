@@ -3,7 +3,7 @@ Get unix time (nanoseconds) in blazing low latency. About 10x~100x faster than t
 
 - __Time Stamp Counter (TSC)__
 
-  Based on CPU's TSC register.
+  Based on CPU's TSC register. With Invariant TSC supports, we could get a reliable frequency even cross multi cores/CPUs.
 
 - __Low Latency__
 
@@ -35,9 +35,19 @@ Get unix time (nanoseconds) in blazing low latency. About 10x~100x faster than t
 
 The offset between wall clock and tsc is extremely low (under dozens ns in avg, maximum is hundreds-1000 ns), see [test codes](tsc_test.go) for more details.
 
+## Usage
+
+If you need a really accurate clock, you should run [getfreq](tools/getfreq) first to get TSC frequency, then set the value to [Frequency Table](freqtbl.go).
+
 ## Warning
 
-If you need really accurate clock, you should run [gofreq](tools/gofreq) first to get TSC frequency, then set the value to [Frequency Table](freqtbl.go).
+The crystal used by TSC is not that stable(and testing result maybe not reliable, because of
+the SMI), what's worse the frequency given by Intel manual maybe far away from the real frequency 
+(even same CPU model may have different frequency, and the delta is big enough to make your clock too slower/faster).
+
+Before using this lib, you should be sure what you need. If you really want a clock with high performance, please testing the tsc clock carefully.
+(there is a tool [longdrift](tools/longdrift) could help you observe the frequency wave. It's a good practice that run this tool on each server with
+different options at least one day.)
 
 ## Limitation
 

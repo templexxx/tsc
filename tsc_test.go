@@ -7,10 +7,14 @@ import (
 	"time"
 )
 
+func init() {
+	ResetEnabled(true)
+}
+
 // Out-of-Order test, GetInOrder should be in order as we assume.
 func TestGetInOrder(t *testing.T) {
 
-	if !Enabled {
+	if !Enabled() {
 		t.Skip("tsc is disabled")
 	}
 
@@ -37,7 +41,7 @@ func TestGetInOrder(t *testing.T) {
 
 func TestUnixNanoCmpWallClock(t *testing.T) {
 
-	if !Enabled {
+	if !Enabled() {
 		t.Skip("tsc is disabled")
 	}
 
@@ -94,7 +98,7 @@ func TestUnixNanoCmpWallClock(t *testing.T) {
 
 func TestUnixNanoCmpUnixNano(t *testing.T) {
 
-	if !Enabled {
+	if !Enabled() {
 		t.Skip("tsc is disabled")
 	}
 
@@ -155,7 +159,7 @@ func TestIsEven(t *testing.T) {
 
 func BenchmarkGetInOrder(b *testing.B) {
 
-	if !Enabled {
+	if !Enabled() {
 		b.Skip("tsc is disabled")
 	}
 
@@ -166,7 +170,7 @@ func BenchmarkGetInOrder(b *testing.B) {
 
 func BenchmarkUnixNano(b *testing.B) {
 
-	if !Enabled {
+	if !Enabled() {
 		b.Skip("tsc is disabled")
 	}
 
@@ -175,22 +179,18 @@ func BenchmarkUnixNano(b *testing.B) {
 	}
 }
 
-func TestLongDrift(t *testing.T) {
+func TestFastCheckDrift(t *testing.T) {
 
-	if !Enabled {
+	if !Enabled() {
 		t.Skip("tsc is disabled")
 	}
 
-	if testing.Short() {
-		t.Skip("skip the test, because it may cost too much time")
-	}
-
-	time.Sleep(time.Minute)
+	time.Sleep(time.Second)
 	tscc := UnixNano()
 	wallc := time.Now().UnixNano()
 
-	if math.Abs(float64(tscc-wallc)) > 20000 { // Which means every hour may have 1ms drift, too much.
+	if math.Abs(float64(tscc-wallc)) > 20000 { // Which means every second may have 20us drift, too much.
 		t.Log(tscc - wallc)
-		t.Fatal("the tsc frequency is too far away from the real, please use tools/gofreq to get the more accurate tsc frequency and write result into FreqTbl")
+		t.Fatal("the tsc frequency is too far away from the real, please use tools/getfreq to get the more accurate tsc frequency")
 	}
 }

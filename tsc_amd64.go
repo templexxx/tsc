@@ -1,11 +1,15 @@
 package tsc
 
 import (
+	"fmt"
 	"math"
 	"os"
+	"sort"
 	"strconv"
 	"sync/atomic"
 	"time"
+
+	"gonum.org/v1/gonum/stat"
 
 	"github.com/templexxx/cpu"
 )
@@ -26,22 +30,17 @@ var (
 )
 
 func init() {
-	Enabled = enableTSC()
-	if Enabled {
+	_ = reset()
+}
 
-		var minDelta, minTsc, minWall uint64
-		minDelta = math.MaxUint64
-		for i := 0; i < 256; i++ { // Try to find the best one.
-			md, tsc, wall := fastCalibrate()
-			if md < minDelta {
-				minDelta = md
-				minTsc = tsc
-				minWall = wall
-			}
-		}
-
-		setOffset(minWall, minTsc)
+func reset() bool {
+	if enableTSC() {
+		atomic.StoreInt64(&enabled, 1)
 		unixNano = unixNanoTSC
+		return true
+	} else {
+		atomic.StoreInt64(&enabled, 0)
+		return false
 	}
 }
 
@@ -67,13 +66,6 @@ func enableTSC() bool {
 		return false
 	}
 
-	// Cannot get TSC frequency by CPU feature detection, may caused by:
-	// 1. New CPU which I haven't updated the its crystal frequency. Please raise a issue, thank you.
-	// 2. Virtual environment
-	if cpu.X86.TSCFrequency == 0 {
-		return false
-	}
-
 	// Some instructions need AVX, see tsc_amd64.s for details.
 	// Actually, it's hardly to find a CPU without AVX supports in present. :)
 	// And it's weird that a CPU has invariant TSC but doesn't have AVX.vbfg
@@ -81,11 +73,23 @@ func enableTSC() bool {
 		return false
 	}
 
-	freq := fpFromEnv(FreqEnv)
+	// Cannot get TSC frequency by CPU feature detection, may caused by:
+	// 1. New CPU which I haven't updated the its crystal frequency. Please raise a issue, thank you.
+	// 2. Virtual environment
+	if cpu.X86.TSCFrequency == 0 {
+		return false
+	}
+
+	atomic.StoreInt64(&supported, 1)
+
+	freq := fpFromEnv(FreqEnv) // If we got frequency in env, trust it.
 	FreqSource = EnvSource
+	if freq == 0 && AllowUnstableFreq() {
+		freq = getFreqNonEnv()
+	}
+
 	if freq == 0 {
-		freq = float64(cpu.X86.TSCFrequency)
-		FreqSource = CPUFeatureSource
+		return false
 	}
 
 	// The frequency provided by Intel manual is not that reliable,
@@ -97,13 +101,114 @@ func enableTSC() bool {
 	//
 	// But we still need the frequency because it will be the bench for adjusting.
 	c := math.Float64bits(1 / (freq / 1e9))
-	atomic.StoreUint64(&Coeff, c)
-
-	if Coeff == 0 {
+	if c == 0 {
 		return false
 	}
+	atomic.StoreUint64(&Coeff, c)
+
+	var minDelta, minTsc, minWall uint64
+	minDelta = math.MaxUint64
+	for i := 0; i < 256; i++ { // Try to find the best one.
+		md, tsc, wall := fastCalibrate()
+		if md < minDelta {
+			minDelta = md
+			minTsc = tsc
+			minWall = wall
+		}
+	}
+
+	setOffset(minWall, minTsc)
 
 	return true
+}
+
+func getFreqNonEnv() float64 {
+	ff := getFreqFast()
+	if checkDrift(ff) {
+		FreqSource = FastDetectSource
+		return ff
+	}
+
+	cf := float64(cpu.X86.TSCFrequency)
+	if checkDrift(cf) {
+		FreqSource = CPUFeatureSource
+		return cf
+	}
+	FreqSource = ""
+
+	return 0
+}
+
+// checkDrift checks tsc clock & system clock drift in a fast way.
+// Expect < 10us/s.
+// Return true if pass.
+func checkDrift(freq float64) bool {
+	c := math.Float64bits(1 / (freq / 1e9))
+	if c == 0 {
+		return false
+	}
+	atomic.StoreUint64(&Coeff, c)
+
+	time.Sleep(time.Second)
+	tscc := unixNanoTSC()
+	wallc := time.Now().UnixNano()
+
+	if math.Abs(float64(tscc-wallc)) > 10000 { // Which means every 15min may have 4.5ms drift, too much.
+		fmt.Println("shit", math.Abs(float64(tscc-wallc)))
+		return false
+	}
+	return false
+}
+
+type tscWall struct {
+	tscc uint64
+	wall uint64
+}
+
+// getFreqFast gets tsc frequecny with a fast detection.
+func getFreqFast() float64 {
+	round := 2
+
+	allFreqs := make([][]float64, round)
+
+	for k := 0; k < round; k++ {
+		cnt := 1024 // TODO 1024 good enough?
+		ret := make([]tscWall, cnt)
+		for i := 0; i < cnt; i++ {
+			_, tscc, wallc := fastCalibrate()
+			ret[i] = tscWall{tscc: tscc, wall: wallc}
+		}
+		freqs := make([]float64, cnt-1)
+		for i := 1; i < cnt; i++ {
+			freq := float64(ret[i].tscc-ret[i-1].tscc) * 1e9 / float64(ret[i].wall-ret[i-1].wall)
+			freqs[i-1] = freq
+		}
+		sort.Float64s(freqs)
+		freqs = freqs[128:]            // Drop min.
+		freqs = freqs[:len(freqs)-128] // Drop max.
+		allFreqs[k] = freqs
+	}
+
+	minsd := math.MaxFloat64
+	minsdi := 0
+	for i, freqs := range allFreqs {
+		sd := stat.StdDev(freqs, nil)
+		if sd < minsd {
+			minsd = sd
+			minsdi = i
+		}
+	}
+
+	freqs := allFreqs[minsdi]
+
+	totalFreq := float64(0)
+	for i := range freqs {
+		totalFreq += freqs[i]
+	}
+
+	setOffset(minWall, minTsc)
+
+	return totalFreq / float64(len(freqs))
 }
 
 func fpFromEnv(name string) float64 {
@@ -123,7 +228,7 @@ func fpFromEnv(name string) float64 {
 // If !enabled do nothing.
 func Calibrate() {
 
-	if !Enabled {
+	if !Enabled() {
 		return
 	}
 

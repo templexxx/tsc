@@ -82,6 +82,7 @@ func main() {
 	fmt.Printf("cpu: %s freq_avg: %.9f, freq_mode&cnt: %.9f; %.2f, freq_mid: %.9f, job cost: %.2fs\n", cpuFlag,
 		totalFreq/float64(len(freqs)), mode, mcnt, freqs[len(freqs)/2],
 		cost.Seconds())
+	fmt.Println("it's a good practice to choose the avg one, unless the cnt of freq_mode is >= 10")
 	fmt.Println("-------")
 	fmt.Printf("origin freq is: %.9f\n", 1e9/math.Float64frombits(atomic.LoadUint64(&tsc.Coeff)))
 	fmt.Println("=======")
