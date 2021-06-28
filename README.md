@@ -42,6 +42,13 @@ After testing, you should set env_var(`TSC_FREQ_X`) to the best frequency for ea
 If your application doesn't care the accuracy of clock too much, you could invoke `tsc.ResetEnabled(true)` for allowing unstable frequency.
 Although it's "unstable", we still run a simple checking for ensuring the result won't be too bad. 
 
+Get a more accurate TSC frequency is important for getting a closer result, which means within a duration, the drift between standard clock
+and TSC clock won't be too bad. Actually, even with an "accurate" TSC frequency, we could still get a bad result after a long run. 
+That caused by the unstable crystal frequency (both of wall clock crystal & tsc crystal), the frequency is a wave, but what we got was
+just a point of the wave. `tsc.Calibrate()`  could help to get an offset to fix the drift which getting bigger and bigger. The drift must
+be bigger and bigger, it's easy to understand it by the formula: `tsc_clock = tsc_value * coefficient(point_frequency) + offset`, when the
+coefficient fixed, as time goes by, the drift must get bigger.
+
 ## Usage
 
 ```go
