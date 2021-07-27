@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"math"
 	"sort"
-	"sync/atomic"
 	"time"
 
 	"github.com/templexxx/cpu"
@@ -86,7 +85,7 @@ func main() {
 		cost.Seconds())
 	fmt.Println("it's a good practice to choose the avg one, unless the cnt of freq_mode is >= 10")
 	fmt.Println("-------")
-	fmt.Printf("origin freq is: %.9f\n", 1e9/math.Float64frombits(atomic.LoadUint64(&tsc.Coeff)))
+	fmt.Printf("origin freq is: %.9f\n", 1e9/tsc.Coeff)
 	fmt.Println("=======")
 }
 

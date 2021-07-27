@@ -22,8 +22,7 @@ var (
 	// MUL gets much better perf than DIV.
 	//
 	// Using an uint64 for atomic operation.
-	Coeff     uint64 = 0
-	_padding2        = cpu.X86FalseSharingRange
+	Coeff float64 = 0
 )
 
 func init() {
@@ -42,8 +41,7 @@ func reset() bool {
 }
 
 func setOffset(ns, tsc uint64) {
-	c := atomic.LoadUint64(&Coeff)
-	off := ns - uint64(float64(tsc)*math.Float64frombits(c))
+	off := ns - uint64(float64(tsc)*Coeff)
 	atomic.StoreInt64(&offset, int64(off))
 }
 
@@ -93,12 +91,12 @@ func enableTSC() bool {
 	// That's why we have to adjust the frequency by tools provided by this project.
 	//
 	// But we still need the frequency because it will be the bench for adjusting.
-	c := math.Float64bits(1 / (freq / 1e9))
+	c := 1 / (freq / 1e9)
 	if c == 0 {
 		return false
 	}
 
-	atomic.StoreUint64(&Coeff, c)
+	Coeff = c
 
 	var minDelta, minTsc, minWall uint64
 	minDelta = math.MaxUint64

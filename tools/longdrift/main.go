@@ -9,7 +9,6 @@ import (
 	"math"
 	"runtime"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/elastic/go-hdrhistogram"
@@ -73,7 +72,7 @@ func (r *runner) run() {
 		r.cfg.TSCFreq = freq
 		r.cfg.Source = "option"
 	} else {
-		r.cfg.TSCFreq = 1e9 / math.Float64frombits(atomic.LoadUint64(&tsc.Coeff))
+		r.cfg.TSCFreq = 1e9 / tsc.Coeff
 		r.cfg.Source = tsc.FreqSource
 	}
 
