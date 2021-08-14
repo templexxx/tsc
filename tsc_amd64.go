@@ -64,13 +64,6 @@ func enableTSC() bool {
 		return false
 	}
 
-	// Cannot get TSC frequency by CPU feature detection, may caused by:
-	// 1. New CPU which I haven't updated the its crystal frequency. Please raise a issue, thank you.
-	// 2. Virtual environment
-	if cpu.X86.TSCFrequency == 0 {
-		return false
-	}
-
 	atomic.StoreInt64(&supported, 1)
 
 	freq := fpFromEnv(FreqEnv) // If we got frequency in env, trust it.
