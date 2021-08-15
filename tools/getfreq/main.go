@@ -24,7 +24,7 @@ func main() {
 		return
 	}
 
-	tsc.ResetEnabled(true)
+	tsc.ForceTSC(true)
 
 	start := time.Now()
 
@@ -85,7 +85,7 @@ func main() {
 		cost.Seconds())
 	fmt.Println("it's a good practice to choose the avg one, unless the cnt of freq_mode is >= 10")
 	fmt.Println("-------")
-	fmt.Printf("origin freq is: %.9f\n", 1e9/tsc.Coeff)
+	fmt.Printf("origin freq is: %.9f\n", tsc.Frequency)
 	fmt.Println("=======")
 }
 

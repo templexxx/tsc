@@ -22,8 +22,8 @@ TEXT ·RDTSC(SB), NOSPLIT, $0
 
 #define tsc AX
 #define ftsc X0 // float64(tsc)
-#define ns X1 // nanoseconds
-#define un R8 // unixNano
+#define ns X0 // nanoseconds
+#define un AX // unixNano
 
 // func unixNanoTSC() int64
 TEXT ·unixNanoTSC(SB), NOSPLIT, $0
@@ -38,7 +38,7 @@ TEXT ·unixNanoTSC(SB), NOSPLIT, $0
 	ORQ  DX, tsc // -> [DX, tsc] (high, low)
 
 	VCVTSI2SDQ  tsc, ftsc, ftsc      // ftsc = float64(tsc)
-	VMULSD      ·Coeff(SB), ftsc, ns // ns = coeff * fstc
+	VMULSD      ·coeff(SB), ftsc, ns // ns = coeff * fstc
 	VCVTTSD2SIQ ns, un               // un = int64(ns)
 	ADDQ        ·offset(SB), un      // un += offset
 	MOVQ        un, ret+0(FP)

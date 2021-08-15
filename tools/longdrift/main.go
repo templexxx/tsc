@@ -72,7 +72,7 @@ func (r *runner) run() {
 		r.cfg.TSCFreq = freq
 		r.cfg.Source = "option"
 	} else {
-		r.cfg.TSCFreq = 1e9 / tsc.Coeff
+		r.cfg.TSCFreq = tsc.Frequency
 		r.cfg.Source = tsc.FreqSource
 	}
 

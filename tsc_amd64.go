@@ -15,34 +15,35 @@ var (
 	// padding for reducing cache pollution.
 	_padding0 = cpu.X86FalseSharingRange
 	offset    int64 // offset + toNano(tsc) = unix nano
-	_padding1       = cpu.X86FalseSharingRange
-	// Coeff (coefficient) * tsc = nano seconds.
-	// Coeff is the inverse of TSCFrequency(GHz)
+	_padding1 = cpu.X86FalseSharingRange
+
+	Frequency float64 = 0	// TSC frequency.
+	// coeff (coefficient) * tsc = nano seconds.
+	// coeff is the inverse of TSCFrequency(GHz)
 	// for avoiding future dividing.
-	// MUL gets much better perf than DIV.
-	//
-	// Using an uint64 for atomic operation.
-	Coeff float64 = 0
+	// MUL gets much better performance than DIV.
+	coeff float64 = 0
+
+	_padding2 = cpu.X86FalseSharingRange
 )
 
+var unixNano = unixNanoTSC
+
 func init() {
+
 	_ = reset()
 }
 
 func reset() bool {
 	if enableTSC() {
-		atomic.StoreInt64(&enabled, 1)
-		unixNano = unixNanoTSC
+		enabled = 1
 		return true
 	} else {
-		atomic.StoreInt64(&enabled, 0)
+		enabled = 0
+		FreqSource = ""
+		unixNano = time.Now().UnixNano
 		return false
 	}
-}
-
-func setOffset(ns, tsc uint64) {
-	off := ns - uint64(float64(tsc)*Coeff)
-	atomic.StoreInt64(&offset, int64(off))
 }
 
 // unixNanoTSC returns unix nano time by TSC register.
@@ -51,45 +52,31 @@ func unixNanoTSC() int64
 
 // enable TSC or not.
 func enableTSC() bool {
-	// Invariant TSC could make sure TSC got synced among multi CPUs.
-	// They will be reset at same time, and run in same frequency.
-	if !cpu.X86.HasInvariantTSC {
+
+	if !isHardwareSupported() {
 		return false
 	}
 
-	// Some instructions need AVX, see tsc_amd64.s for details.
-	// Actually, it's hardly to find a CPU without AVX supports in present. :)
-	// And it's weird that a CPU has invariant TSC but doesn't have AVX.vbfg
-	if !cpu.X86.HasAVX {
-		return false
-	}
-
-	atomic.StoreInt64(&supported, 1)
-
-	freq := fpFromEnv(FreqEnv) // If we got frequency in env, trust it.
-	FreqSource = EnvSource
-	if freq == 0 && AllowUnstableFreq() {
+	freq := fpFromEnv(FreqEnv) // Try get frequency from environment firstly.
+	if freq != 0 {
+		FreqSource = EnvSource
+	} else {
 		freq = getFreqNonEnv()
 	}
 
 	if freq == 0 {
+		FreqSource = ""
 		return false
 	}
 
-	// The frequency provided by Intel manual is not that reliable,
-	// (Actually, there is 1/millions delta at least)
-	// it's easy to ensure that, because it's common that crystal will have "waves".
-	// Yes, we can get an expensive crystal, but we can't replace the crystal in CPU
-	// by the better one.
-	// That's why we have to adjust the frequency by tools provided by this project.
-	//
-	// But we still need the frequency because it will be the bench for adjusting.
+	Frequency = freq
+
 	c := 1 / (freq / 1e9)
-	if c == 0 {
+	if c == 0 {	// Just in case.
 		return false
 	}
 
-	Coeff = c
+	coeff = c
 
 	var minDelta, minTsc, minWall uint64
 	minDelta = math.MaxUint64
@@ -104,10 +91,45 @@ func enableTSC() bool {
 
 	setOffset(minWall, minTsc)
 
-	if !checkDrift() {
+	pass := checkDelta()
+	if pass {
+		stable = 1
+	} else {
+		stable = 0
+	}
+
+	if forceTSC == 1 {
+		return true
+	}
+
+	if !pass {
+		FreqSource = ""
 		return false
 	}
 
+	return true
+}
+
+func isHardwareSupported() bool {
+
+	if supported == 1 {
+		return true
+	}
+
+	// Invariant TSC could make sure TSC got synced among multi CPUs.
+	// They will be reset at same time, and run in same frequency.
+	if !cpu.X86.HasInvariantTSC {
+		return false
+	}
+
+	// Some instructions need AVX, see tsc_amd64.s for details.
+	// Actually, it's hardly to find a CPU without AVX supports in present. :)
+	// And it's weird that a CPU has invariant TSC but doesn't have AVX.
+	if !cpu.X86.HasAVX {
+		return false
+	}
+
+	supported = 1
 	return true
 }
 
@@ -123,24 +145,30 @@ func getFreqNonEnv() float64 {
 		FreqSource = CPUFeatureSource
 		return cf
 	}
-	FreqSource = ""
 
 	return 0
 }
 
-// checkDrift checks tsc clock & system clock drift in a fast way.
+const acceptDelta = 10000	// 10us.
+
+// checkDelta checks tsc clock & system clock delta in a fast way.
 // Expect < 10us/s.
 // Return true if pass.
-func checkDrift() bool {
+func checkDelta() bool {
 
 	time.Sleep(time.Second)
 	tscc := unixNanoTSC()
 	wallc := time.Now().UnixNano()
 
-	if math.Abs(float64(tscc-wallc)) > 10000 { // Which means every 1s may have 10us drift, too much.
+	if math.Abs(float64(tscc-wallc)) > acceptDelta { // Which means every 1s has > 10us delta, too much.
 		return false
 	}
 	return true
+}
+
+func setOffset(ns, tsc uint64) {
+	off := ns - uint64(float64(tsc)*coeff)
+	atomic.StoreInt64(&offset, int64(off))
 }
 
 type tscWall struct {
@@ -148,7 +176,7 @@ type tscWall struct {
 	wall uint64
 }
 
-// getFreqFast gets tsc frequecny with a fast detection.
+// getFreqFast gets tsc frequency with a fast detection.
 func getFreqFast() float64 {
 
 	round := 16
@@ -202,7 +230,7 @@ func Calibrate() {
 	setOffset(wall, tsc)
 }
 
-// fastCalibrate calibrates tsc clock and wall clock fastly,
+// fastCalibrate calibrates tsc clock and wall clock in a fast way,
 // it's used for first checking and catching up wall clock adjustment.
 //
 // It will get clocks repeatedly, and try find the closest tsc clock and wall clock.

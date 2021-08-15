@@ -9,7 +9,7 @@ import (
 
 func init() {
 
-	ResetEnabled(true)
+	ForceTSC()
 }
 
 // Out-of-Order test, GetInOrder should be in order as we assume.
@@ -177,6 +177,17 @@ func BenchmarkUnixNano(b *testing.B) {
 
 	for i := 0; i < b.N; i++ {
 		_ = UnixNano()
+	}
+}
+
+func BenchmarkRDTSC(b *testing.B) {
+
+	if !Enabled() {
+		b.Skip("tsc is disabled")
+	}
+
+	for i := 0; i < b.N; i++ {
+		_ = RDTSC()
 	}
 }
 
