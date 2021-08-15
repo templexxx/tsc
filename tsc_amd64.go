@@ -15,9 +15,9 @@ var (
 	// padding for reducing cache pollution.
 	_padding0 = cpu.X86FalseSharingRange
 	offset    int64 // offset + toNano(tsc) = unix nano
-	_padding1 = cpu.X86FalseSharingRange
+	_padding1       = cpu.X86FalseSharingRange
 
-	Frequency float64 = 0	// TSC frequency.
+	Frequency float64 = 0 // TSC frequency.
 	// coeff (coefficient) * tsc = nano seconds.
 	// coeff is the inverse of TSCFrequency(GHz)
 	// for avoiding future dividing.
@@ -72,7 +72,7 @@ func enableTSC() bool {
 	Frequency = freq
 
 	c := 1 / (freq / 1e9)
-	if c == 0 {	// Just in case.
+	if c == 0 { // Just in case.
 		return false
 	}
 
@@ -103,7 +103,6 @@ func enableTSC() bool {
 	}
 
 	if !pass {
-		FreqSource = ""
 		return false
 	}
 
@@ -149,7 +148,7 @@ func getFreqNonEnv() float64 {
 	return 0
 }
 
-const acceptDelta = 10000	// 10us.
+const acceptDelta = 10000 // 10us.
 
 // checkDelta checks tsc clock & system clock delta in a fast way.
 // Expect < 10us/s.
