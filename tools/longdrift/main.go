@@ -70,6 +70,7 @@ func (r *runner) run() {
 	freq := *tscFreq
 	if freq != 0 {
 		r.cfg.TSCFreq = freq
+		tsc.Frequency = freq
 		r.cfg.Source = "option"
 	} else {
 		r.cfg.TSCFreq = tsc.Frequency
@@ -80,7 +81,7 @@ func (r *runner) run() {
 
 	cpuFlag := fmt.Sprintf("%s_%d", cpu.X86.Signature, cpu.X86.SteppingID)
 
-	fmt.Printf("cpu: %s, tsc_freq: %.9f, source: %s\n", cpuFlag, r.cfg.TSCFreq, r.cfg.Source)
+	fmt.Printf("cpu: %s, tsc_freq: %.9f, source: %s\n", cpuFlag, tsc.Frequency, r.cfg.Source)
 
 	ctx, cancel := context.WithCancel(context.Background())
 
