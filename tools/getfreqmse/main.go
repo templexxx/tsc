@@ -54,11 +54,11 @@ func main() {
 	}
 
 	for i := 1; i < cnt; i++ {
-		freq := float64(samples[i].tscc-samples[i-1].tscc) * 1e9 / float64(samples[i].wall-samples[i-1].wall)
-		freqsOneStep[i-1] = freq
+		freq := float64(samples[i].tscc-samples[i-1].tscc) / float64(samples[i].wall-samples[i-1].wall)
+		freqsOneStep[i-1] = freq * 1e9
 
-		freq = float64(samples[i].tscc-samples[0].tscc) * 1e9 / float64(samples[i].wall-samples[0].wall)
-		freqsSteps[i-1] = freq
+		freq = float64(samples[i].tscc-samples[0].tscc) / float64(samples[i].wall-samples[0].wall)
+		freqsSteps[i-1] = freq * 1e9
 	}
 
 	avgFreq0, mseFreq0 := calcMSE(freqsOneStep, *frange, *drop, oneStep, samples)
@@ -110,13 +110,15 @@ func calcMSE(freqs []float64, fr, drop, step int, samples []tscWall) (avgFreq, m
 		switch step {
 		case oneStep:
 			for i := 1; i < len(samples); i++ {
-				predict := float64(samples[i].wall-samples[i-1].wall) * f
-				mse0 += math.Pow(math.Abs(predict-float64(samples[i].tscc-samples[i-1].tscc)*1e9), 2)
+				predict := float64(samples[i].wall-samples[i-1].wall) * (f / 1e9)
+				delta := math.Abs(predict - (float64(samples[i].tscc - samples[i-1].tscc)))
+				mse0 += math.Pow(delta, 2)
 			}
 		default: // steps
 			for i := 1; i < len(samples); i++ {
-				predict := float64(samples[i].wall-samples[0].wall) * f
-				mse0 += math.Pow(math.Abs(predict-float64(samples[i].tscc-samples[0].tscc)*1e9), 2)
+				predict := float64(samples[i].wall-samples[0].wall) * (f / 1e9)
+				delta := math.Abs(predict - (float64(samples[i].tscc - samples[0].tscc)))
+				mse0 += math.Pow(delta, 2)
 			}
 		}
 		if mse0 < mse {
