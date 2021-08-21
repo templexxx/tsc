@@ -24,7 +24,7 @@ func main() {
 		return
 	}
 
-	tsc.ForceTSC(true)
+	tsc.ForceTSC()
 
 	start := time.Now()
 
