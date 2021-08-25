@@ -46,6 +46,13 @@ func reset() bool {
 	}
 }
 
+// SetFreq sets frequency manually.
+func SetFreq(freq float64) {
+	Frequency = freq
+	c := 1 / (freq / 1e9)
+	coeff = c
+}
+
 // unixNanoTSC returns unix nano time by TSC register.
 //go:noescape
 func unixNanoTSC() int64

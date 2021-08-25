@@ -15,7 +15,7 @@ func Calibrate() {
 	return
 }
 
-var unixNano =  time.Now().UnixNano
+var unixNano = time.Now().UnixNano
 
 // GetInOrder gets tsc value in strictly order.
 // It's used for helping calibrate to avoid out-of-order issues.
@@ -34,4 +34,9 @@ func reset() bool {
 // For non-amd64, just return 0.
 func GetInOrder() uint64 {
 	return 0
+}
+
+// SetFreq sets frequency manually.
+func SetFreq(freq float64) {
+	return
 }
