@@ -35,14 +35,11 @@ func main() {
 		cnt = 128 // TODO at least 128 is a good choice?
 	}
 
-	freqsOneStep := make([]float64, cnt-1) // Frequency is calculated by two adjacent samples (one step each).
-	freqsSteps := make([]float64, cnt-1)   // Frequency is calculated by sample_i & sample_0 (i>=1) pair (i step each).
-
-	samples := make([]tscWall, cnt)
+	ss := make([]tscWall, cnt)
 	for i := 0; i < cnt; i++ {
 		var minDelta, minTsc, minWall uint64
 		minDelta = math.MaxUint64
-		for j := 0; j < 256; j++ { // Try to find the best one inside 256 tries (avoiding jitter).
+		for j := 0; j < 64; j++ { // Try to find the best one inside 64 tries (avoiding jitter).
 			md, tscc, wallc := calibrate(256)
 			if md < minDelta {
 				minDelta = md
@@ -50,19 +47,26 @@ func main() {
 				minWall = wallc
 			}
 		}
-		samples[i] = tscWall{tscc: minTsc, wall: minWall}
+		ss[i] = tscWall{idx: i, tscc: minTsc, wall: minWall, delta: minDelta}
 	}
 
-	for i := 1; i < cnt; i++ {
-		freq := float64(samples[i].tscc-samples[i-1].tscc) / float64(samples[i].wall-samples[i-1].wall)
-		freqsOneStep[i-1] = freq * 1e9
+	sort.Sort(samplesOrderByDelta(ss))
+	ss = ss[:cnt/2] // Only choice the best half.
+	sort.Sort(samplesOrderByIdx(ss))
 
-		freq = float64(samples[i].tscc-samples[0].tscc) / float64(samples[i].wall-samples[0].wall)
-		freqsSteps[i-1] = freq * 1e9
+	freqsOneStep := make([]float64, 0, cnt/2-1) // Frequency is calculated by two adjacent samples (one step each).
+	freqsSteps := make([]float64, 0, cnt/2-1)   // Frequency is calculated by sample_i & sample_0 (i>=1) pair (i step each).
+
+	for i := 1; i < cnt/2; i++ {
+		freq := float64(ss[i].tscc-ss[i-1].tscc) / float64(ss[i].wall-ss[i-1].wall)
+		freqsOneStep = append(freqsOneStep, freq*1e9)
+
+		freq = float64(ss[i].tscc-ss[0].tscc) / float64(ss[i].wall-ss[0].wall)
+		freqsSteps = append(freqsSteps, freq*1e9)
 	}
 
-	avgFreq0, mseFreq0 := calcMSE(freqsOneStep, *frange, *drop, oneStep, samples)
-	avgFreq1, mseFreq1 := calcMSE(freqsSteps, *frange, *drop, steps, samples)
+	avgFreq0, mseFreq0 := calcMSE(freqsOneStep, *frange, *drop, oneStep, ss)
+	avgFreq1, mseFreq1 := calcMSE(freqsSteps, *frange, *drop, steps, ss)
 
 	cost := time.Now().Sub(start)
 
@@ -74,6 +78,34 @@ func main() {
 	fmt.Println("=======")
 	report(oneStep, avgFreq0, mseFreq0)
 	report(steps, avgFreq1, mseFreq1)
+}
+
+type samplesOrderByDelta []tscWall
+
+func (s samplesOrderByDelta) Len() int {
+	return len(s)
+}
+
+func (s samplesOrderByDelta) Less(i, j int) bool {
+	return s[i].delta < s[j].delta
+}
+
+func (s samplesOrderByDelta) Swap(i, j int) {
+	s[i], s[j] = s[j], s[i]
+}
+
+type samplesOrderByIdx []tscWall
+
+func (s samplesOrderByIdx) Len() int {
+	return len(s)
+}
+
+func (s samplesOrderByIdx) Less(i, j int) bool {
+	return s[i].idx < s[j].idx
+}
+
+func (s samplesOrderByIdx) Swap(i, j int) {
+	s[i], s[j] = s[j], s[i]
 }
 
 func report(step int, avg, mse float64) {
@@ -104,7 +136,7 @@ func calcMSE(freqs []float64, fr, drop, step int, samples []tscWall) (avgFreq, m
 
 	mse := math.MaxFloat64
 
-	for f := avgFreq - float64(fr); f <= avgFreq+float64(fr); f++ {
+	for f := avgFreq - float64(fr); f <= avgFreq+float64(fr); f += 0.5 { // TODO more round?
 
 		var mse0 float64
 		switch step {
@@ -130,8 +162,10 @@ func calcMSE(freqs []float64, fr, drop, step int, samples []tscWall) (avgFreq, m
 }
 
 type tscWall struct {
-	tscc uint64
-	wall uint64
+	idx   int
+	tscc  uint64
+	wall  uint64
+	delta uint64
 }
 
 func calibrate(n int) (minDelta, tscClock, wall uint64) {
