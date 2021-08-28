@@ -6,12 +6,15 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"math"
 	"runtime"
 	"sync"
 	"time"
 
-	"github.com/elastic/go-hdrhistogram"
+	"gonum.org/v1/plot"
+	"gonum.org/v1/plot/plotter"
+	"gonum.org/v1/plot/plotutil"
+	"gonum.org/v1/plot/vg"
+
 	"github.com/klauspost/cpuid/v2"
 	"github.com/templexxx/cpu"
 	"github.com/templexxx/tsc"
@@ -51,13 +54,19 @@ func main() {
 		Threads:           *threads,
 	}
 
-	r := &runner{cfg: &cfg}
+	deltas := make([][]int64, cfg.Threads)
+	for i := range deltas {
+		deltas[i] = make([]int64, cfg.JobTime)
+	}
+
+	r := &runner{cfg: &cfg, deltas: deltas}
+
 	r.run()
 }
 
 type runner struct {
-	cfg   *Config
-	delta *hdrhistogram.Histogram
+	cfg    *Config
+	deltas [][]int64
 }
 
 func (r *runner) run() {
@@ -71,13 +80,12 @@ func (r *runner) run() {
 	if freq != 0 {
 		r.cfg.TSCFreq = freq
 		tsc.SetFreq(freq)
+		tsc.Calibrate() // Reset offset.
 		r.cfg.Source = "option"
 	} else {
 		r.cfg.TSCFreq = tsc.Frequency
 		r.cfg.Source = tsc.FreqSource
 	}
-
-	r.delta = hdrhistogram.New(-time.Second.Nanoseconds(), time.Second.Nanoseconds(), 3)
 
 	cpuFlag := fmt.Sprintf("%s_%d", cpu.X86.Signature, cpu.X86.SteppingID)
 
@@ -116,24 +124,7 @@ func (r *runner) run() {
 	wg.Wait()
 	cancel()
 
-	printLat("tsc-wall_clock", r.delta)
-}
-
-func printLat(name string, lats *hdrhistogram.Histogram) {
-	fmt.Println(fmt.Sprintf("%s min: %d, avg: %.2f, max: %d",
-		name, lats.Min(), lats.Mean(), lats.Max()))
-	fmt.Println("delta(abs) percentiles (nsec):")
-	fmt.Print(fmt.Sprintf(
-		"|  1.00th=[%d],  5.00th=[%d], 10.00th=[%d], 20.00th=[%d],\n"+
-			"| 30.00th=[%d], 40.00th=[%d], 50.00th=[%d], 60.00th=[%d],\n"+
-			"| 70.00th=[%d], 80.00th=[%d], 90.00th=[%d], 95.00th=[%d],\n"+
-			"| 99.00th=[%d], 99.50th=[%d], 99.90th=[%d], 99.95th=[%d],\n"+
-			"| 99.99th=[%d]\n",
-		lats.ValueAtQuantile(1), lats.ValueAtQuantile(5), lats.ValueAtQuantile(10), lats.ValueAtQuantile(20),
-		lats.ValueAtQuantile(30), lats.ValueAtQuantile(40), lats.ValueAtQuantile(50), lats.ValueAtQuantile(60),
-		lats.ValueAtQuantile(70), lats.ValueAtQuantile(80), lats.ValueAtQuantile(90), lats.ValueAtQuantile(95),
-		lats.ValueAtQuantile(99), lats.ValueAtQuantile(99.5), lats.ValueAtQuantile(99.9), lats.ValueAtQuantile(99.95),
-		lats.ValueAtQuantile(99.99)))
+	r.printDeltas()
 }
 
 func takeCPU(ctx context.Context, idle bool) {
@@ -174,34 +165,53 @@ func takeCPU(ctx context.Context, idle bool) {
 func (r *runner) doJobLoop(thread int, wg *sync.WaitGroup) {
 	defer wg.Done()
 
-	ticker := time.NewTicker(time.Second)
-	defer ticker.Stop()
+	for i := 0; i < int(r.cfg.JobTime); i++ {
 
-	end := time.Now().Add(time.Duration(r.cfg.JobTime) * time.Second)
-
-	cnt := 0
-	delta, first, last := int64(0), int64(0), int64(0)
-	for {
-		if time.Now().After(end) {
-			last = delta
-			break
-		}
-		<-ticker.C
+		time.Sleep(time.Second)
 		tscT := tsc.UnixNano()
 		wall := time.Now().UnixNano()
-		delta = tscT - wall
-		_ = r.delta.RecordValueAtomic(int64(math.Abs(float64(delta))))
+		delta := tscT - wall
+		r.deltas[thread][i] = delta
 		if r.cfg.Print {
-			fmt.Printf("wall_clock: %d, tsc: %d, delta: %.2fus\n",
-				wall, tscT, float64(delta)/float64(time.Microsecond))
+			fmt.Printf("thread: %d, wall_clock: %d, tsc: %d, delta: %.2fus\n",
+				thread, wall, tscT, float64(delta)/float64(time.Microsecond))
 		}
-		if cnt == 0 {
-			first = delta
-		}
-		cnt++
 	}
 	fmt.Printf("thread: %d, first_delta: %.2fus, last_delta: %.2fus\n",
 		thread,
-		float64(first)/float64(time.Microsecond),
-		float64(last)/float64(time.Microsecond))
+		float64(r.deltas[thread][0])/float64(time.Microsecond),
+		float64(r.deltas[thread][r.cfg.JobTime-1])/float64(time.Microsecond))
+
+}
+
+func (r *runner) printDeltas() {
+
+	p := plot.New()
+
+	p.Title.Text = "TSC - Wall Clock"
+	p.X.Label.Text = "Time(s)"
+	p.Y.Label.Text = "Delta(us)"
+
+	for i := range r.deltas {
+		err := plotutil.AddLinePoints(p,
+			fmt.Sprintf("thread: %d", i),
+			makePoints(r.deltas[i]))
+		if err != nil {
+			panic(err)
+		}
+	}
+
+	if err := p.Save(10*vg.Inch, 10*vg.Inch, fmt.Sprintf("longdrift_%d.PNG", time.Now().Unix())); err != nil {
+		panic(err)
+	}
+}
+
+func makePoints(deltas []int64) plotter.XYs {
+	points := make(plotter.XYs, len(deltas))
+	for i := range points {
+		points[i].X = float64(i) + 1
+		points[i].Y = float64(deltas[i]) / float64(time.Microsecond)
+	}
+
+	return points
 }
