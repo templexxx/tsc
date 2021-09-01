@@ -13,9 +13,9 @@ import (
 
 var (
 	// padding for reducing cache pollution.
-	_padding0 = cpu.X86FalseSharingRange
+	_padding0 [cpu.X86FalseSharingRange]byte
 	offset    int64 // offset + toNano(tsc) = unix nano
-	_padding1       = cpu.X86FalseSharingRange
+	_padding1 [cpu.X86FalseSharingRange]byte
 
 	Frequency float64 = 0 // TSC frequency.
 	// coeff (coefficient) * tsc = nano seconds.
@@ -24,7 +24,7 @@ var (
 	// MUL gets much better performance than DIV.
 	coeff float64 = 0
 
-	_padding2 = cpu.X86FalseSharingRange
+	_padding2 [cpu.X86FalseSharingRange]byte
 )
 
 var unixNano = unixNanoTSC
