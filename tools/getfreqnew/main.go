@@ -12,7 +12,8 @@ import (
 )
 
 var (
-	sample = flag.Int("sample", 10, "number of samples")
+	sample   = flag.Int("sample", 10, "number of samples")
+	duration = flag.Int64("duration", 1000, "duration(ms) between two timestamp, tsc_ freq = (tsc_b - tsc_a) / (wall_clock_b - wall_clock_a)")
 )
 
 const sleepDuration = time.Second
@@ -31,6 +32,11 @@ func main() {
 
 	if cnt < 2 {
 		cnt = 2
+	}
+
+	du := time.Duration(*duration) * time.Millisecond
+	if du == 0 {
+		du = sleepDuration
 	}
 
 	start := time.Now()
