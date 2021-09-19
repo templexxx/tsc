@@ -178,10 +178,10 @@ func calibrate(n int) (minDelta, tscClock, wall uint64) {
 	// [tscClock, wc, tscClock, wc, ..., tscClock]
 	timeline := make([]uint64, n+n+1)
 
-	timeline[0] = tsc.RDTSC()
+	timeline[0] = tsc.GetInOrder()
 	for i := 1; i < len(timeline)-1; i += 2 {
 		timeline[i] = uint64(time.Now().UnixNano())
-		timeline[i+1] = tsc.RDTSC()
+		timeline[i+1] = tsc.GetInOrder()
 	}
 
 	// The minDelta is the smallest gap between two adjacent tscs,
