@@ -5,9 +5,9 @@ var (
 	stable    int64 = 0 // TSC frequency is stable or not. (If not, we may have big gap between wall clock after long run)
 	forceTSC  int64 = 0 // Enable TSC no matter it's stable or not.
 	enabled   int64 = 0 // TSC clock source is enabled or not, if yes, getting timestamp by tsc register.
-	// Set it to 1 by invoke AllowBackwards() if clock backwards is acceptable.
-	// e.g., for logging, nanoseconds backwards is okay.
-	allowBackwards int64 = 0
+	// Set it to 1 by invoke AllowOutOfOrder() if out-of-order execution is acceptable.
+	// e.g., for logging, backwards is okay in nanoseconds level.
+	allowOutOfOrder int64 = 0
 )
 
 // FreqSource is the source of tsc frequency.
@@ -76,18 +76,18 @@ func Stable() bool {
 	return stable == 1
 }
 
-// AllowBackwards sets allowBackwards true.
+// AllowOutOfOrder sets allowOutOfOrder true.
 //
 // Not threads safe.
-func AllowBackwards() {
-	allowBackwards = 1
+func AllowOutOfOrder() {
+	allowOutOfOrder = 1
 }
 
 // IsAllowBackwards returns allow backwards true or false.
 //
 // Not threads safe.
 func IsAllowBackwards() bool {
-	return allowBackwards == 1
+	return allowOutOfOrder == 1
 }
 
 // ForceTSC forces using TSC as clock source.

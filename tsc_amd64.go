@@ -306,6 +306,6 @@ func RDTSC() int64
 //go:noescape
 func unixNanoTSC() int64
 
-// unixNanoTSCfence returns unix nano time by TSC register with fence protection.
+// unixNanoTSCfence returns unix nano time by TSC register with fence protection(won't be order-of-order).
 //go:noescape
 func unixNanoTSCfence() int64
