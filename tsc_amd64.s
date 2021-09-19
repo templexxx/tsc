@@ -1,6 +1,6 @@
 #include "textflag.h"
 
-// func GetInOrder() uint64
+// func GetInOrder() int64
 TEXT ·GetInOrder(SB), NOSPLIT, $0
 
 	LFENCE             // Ensure all previous instructions have exectuted.
@@ -11,7 +11,7 @@ TEXT ·GetInOrder(SB), NOSPLIT, $0
 	MOVQ AX, ret+0(FP)
 	RET
 
-// func RDTSC() uint64
+// func RDTSC() int64
 TEXT ·RDTSC(SB), NOSPLIT, $0
 
     RDTSC

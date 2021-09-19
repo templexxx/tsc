@@ -13,17 +13,17 @@ import (
 
 var (
 	// padding for reducing cache pollution.
-	_padding0 [cpu.X86FalseSharingRange]byte
-	offset    int64 // offset + toNano(tsc) = unix nano
-	_padding1 [cpu.X86FalseSharingRange]byte
+	_      [cpu.X86FalseSharingRange]byte
+	offset int64 // offset + toNano(tsc) = unix nano
+	_      [cpu.X86FalseSharingRange]byte
 
 	Frequency float64 = 0 // TSC frequency.
 	// coeff (coefficient) * tsc = nano seconds.
 	// coeff is the inverse of TSCFrequency(GHz)
 	// for avoiding future dividing.
 	// MUL gets much better performance than DIV.
-	coeff     float64 = 0
-	_padding2 [cpu.X86FalseSharingRange]byte
+	coeff float64 = 0
+	_     [cpu.X86FalseSharingRange]byte
 )
 
 var unixNano = unixNanoTSCfence
@@ -85,8 +85,8 @@ func enableTSC() bool {
 
 	coeff = c
 
-	var minDelta, minTsc, minWall uint64
-	minDelta = math.MaxUint64
+	var minDelta, minTsc, minWall int64
+	minDelta = math.MaxInt64
 	for i := 0; i < 1024; i++ { // Try to find the best one.
 		md, tsc, wall := fastCalibrate()
 		if md < minDelta {
@@ -172,14 +172,14 @@ func checkDelta() bool {
 	return true
 }
 
-func setOffset(ns, tsc uint64) {
-	off := ns - uint64(float64(tsc)*coeff)
-	atomic.StoreInt64(&offset, int64(off))
+func setOffset(ns, tsc int64) {
+	off := ns - int64(float64(tsc)*coeff)
+	atomic.StoreInt64(&offset, off)
 }
 
 type tscWall struct {
-	tscc uint64
-	wall uint64
+	tscc int64
+	wall int64
 }
 
 // getFreqFast gets tsc frequency with a fast detection.
@@ -240,7 +240,7 @@ func Calibrate() {
 // it's used for first checking and catching up wall clock adjustment.
 //
 // It will get clocks repeatedly, and try find the closest tsc clock and wall clock.
-func fastCalibrate() (minDelta, tsc, wall uint64) {
+func fastCalibrate() (minDelta, tsc, wall int64) {
 
 	// 256 is enough for finding lowest wall clock cost in most cases.
 	// Although time.Now() is using VDSO to get time, but it's unstable,
@@ -249,17 +249,17 @@ func fastCalibrate() (minDelta, tsc, wall uint64) {
 	// And it won't take a long time to finish the calibrate job, only about 20µs.
 	n := 256
 	// [tsc, wc, tsc, wc, ..., tsc]
-	timeline := make([]uint64, n+n+1)
+	timeline := make([]int64, n+n+1)
 
 	timeline[0] = RDTSC() // TODO try to use not order
 	for i := 1; i < len(timeline)-1; i += 2 {
-		timeline[i] = uint64(time.Now().UnixNano())
+		timeline[i] = time.Now().UnixNano()
 		timeline[i+1] = RDTSC()
 	}
 
 	// The minDelta is the smallest gap between two adjacent tscs,
 	// which means the smallest gap between wall clock and tsc too.
-	minDelta = uint64(math.MaxUint64)
+	minDelta = int64(math.MaxInt64)
 	minIndex := 1 // minIndex is wall clock index where has minDelta.
 
 	// time.Now()'s precision is only µs (on MacOS),
@@ -296,11 +296,11 @@ func fastCalibrate() (minDelta, tsc, wall uint64) {
 // GetInOrder gets tsc value in strictly order.
 // It's used for helping calibrate to avoid out-of-order issues.
 //go:noescape
-func GetInOrder() uint64
+func GetInOrder() int64
 
 // RDTSC gets tsc value out-of-order.
 //go:noescape
-func RDTSC() uint64
+func RDTSC() int64
 
 // unixNanoTSC returns unix nano time by TSC register. (May backward because no fence to protect the execution order)
 //go:noescape
