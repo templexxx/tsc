@@ -71,10 +71,12 @@ type runner struct {
 
 func (r *runner) run() {
 
-	if !tsc.Enabled() {
-		fmt.Println("tsc not enabled")
+	if !tsc.Supported() {
+		fmt.Println("tsc unsupported")
 		return
 	}
+
+	tsc.ForceTSC() // Enable TSC force.
 
 	freq := *tscFreq
 	if freq != 0 {
