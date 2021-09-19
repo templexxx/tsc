@@ -13,21 +13,20 @@ import (
 
 var (
 	// padding for reducing cache pollution.
-	_padding0 = cpu.X86FalseSharingRange
+	_padding0 [cpu.X86FalseSharingRange]byte
 	offset    int64 // offset + toNano(tsc) = unix nano
-	_padding1       = cpu.X86FalseSharingRange
+	_padding1 [cpu.X86FalseSharingRange]byte
 
 	Frequency float64 = 0 // TSC frequency.
 	// coeff (coefficient) * tsc = nano seconds.
 	// coeff is the inverse of TSCFrequency(GHz)
 	// for avoiding future dividing.
 	// MUL gets much better performance than DIV.
-	coeff float64 = 0
-
-	_padding2 = cpu.X86FalseSharingRange
+	coeff     float64 = 0
+	_padding2 [cpu.X86FalseSharingRange]byte
 )
 
-var unixNano = unixNanoTSC
+var unixNano = unixNanoTSCfence
 
 func init() {
 
@@ -37,6 +36,11 @@ func init() {
 func reset() bool {
 	if enableTSC() {
 		enabled = 1
+		if IsAllowBackwards() {
+			unixNano = unixNanoTSC
+		} else {
+			unixNano = unixNanoTSCfence
+		}
 		return true
 	} else {
 		enabled = 0
@@ -52,10 +56,6 @@ func SetFreq(freq float64) {
 	c := 1 / (freq / 1e9)
 	coeff = c
 }
-
-// unixNanoTSC returns unix nano time by TSC register.
-//go:noescape
-func unixNanoTSC() int64
 
 // enable TSC or not.
 func enableTSC() bool {
@@ -301,3 +301,11 @@ func GetInOrder() uint64
 // RDTSC gets tsc value out-of-order.
 //go:noescape
 func RDTSC() uint64
+
+// unixNanoTSC returns unix nano time by TSC register. (May backward because no fence to protect the execution order)
+//go:noescape
+func unixNanoTSC() int64
+
+// unixNanoTSCfence returns unix nano time by TSC register with fence protection.
+//go:noescape
+func unixNanoTSCfence() int64

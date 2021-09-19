@@ -1,10 +1,13 @@
 package tsc
 
 var (
-	supported int64 = 0	// Supported invariant TSC or not.
-	stable int64 = 0 	// TSC frequency is stable or not. (If not, we may have big gap between wall clock after long run)
-	forceTSC int64 = 0	// Enable TSC no matter it's stable or not.
-	enabled int64 = 0	// TSC clock source is enabled or not, if yes, getting timestamp by tsc register.
+	supported int64 = 0 // Supported invariant TSC or not.
+	stable    int64 = 0 // TSC frequency is stable or not. (If not, we may have big gap between wall clock after long run)
+	forceTSC  int64 = 0 // Enable TSC no matter it's stable or not.
+	enabled   int64 = 0 // TSC clock source is enabled or not, if yes, getting timestamp by tsc register.
+	// Set it to 1 by invoke AllowBackwards() if clock backwards is acceptable.
+	// e.g., for logging, nanoseconds backwards is okay.
+	allowBackwards int64 = 0
 )
 
 // FreqSource is the source of tsc frequency.
@@ -56,6 +59,7 @@ const (
 func UnixNano() int64 {
 	return unixNano()
 }
+
 // Enabled indicates TSC clock source is enabled or not (using TSC register as clock source).
 // If true, use TSC time. Otherwise, use time.Now().
 func Enabled() bool {
@@ -70,6 +74,20 @@ func Supported() bool {
 // Stable indicates TSC frequency is stable or not. (If not, we may have big gap between wall clock after long run)
 func Stable() bool {
 	return stable == 1
+}
+
+// AllowBackwards sets allowBackwards true.
+//
+// Not threads safe.
+func AllowBackwards() {
+	allowBackwards = 1
+}
+
+// IsAllowBackwards returns allow backwards true or false.
+//
+// Not threads safe.
+func IsAllowBackwards() bool {
+	return allowBackwards == 1
 }
 
 // ForceTSC forces using TSC as clock source.
