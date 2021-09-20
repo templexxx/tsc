@@ -1,4 +1,4 @@
-// longdrift is a tool to print the delta between system wall clock & tsc.
+// longdrift is a tool to print the delta between system clock & tsc.
 
 package main
 
@@ -6,6 +6,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"math"
 	"runtime"
 	"sync"
 	"time"
@@ -28,7 +29,13 @@ var (
 	printDelta        = flag.Bool("print", false, "print every second delta")
 	threads           = flag.Int("threads", 1, "try to run comparing on multi cores")
 	tscFreq           = flag.Float64("freq", 0, "tsc frequency")
+	coeff             = flag.Float64("coeff", 0, "")
+	offset            = flag.Int64("offset", 0, "")
+	cmpsys            = flag.Bool("cmp_sys", false, "compare two system clock but not system clock and tsc clock")
+	InOrder           = flag.Bool("in_order", false, "get tsc register in-order (with lfence)")
 )
+
+var compareFunc = tsc.UnixNano()
 
 type Config struct {
 	JobTime           int64
@@ -44,6 +51,13 @@ type Config struct {
 func main() {
 
 	flag.Parse()
+
+	if *cmpsys {
+		compareFunc = time.Now().UnixNano()
+	}
+	if *InOrder {
+		tsc.ForbidOutOfOrder()
+	}
 
 	cfg := Config{
 		JobTime:           *jobTime,
@@ -78,20 +92,27 @@ func (r *runner) run() {
 
 	tsc.ForceTSC() // Enable TSC force.
 
-	freq := *tscFreq
-	if freq != 0 {
+	if *coeff != 0 && *offset != 0 {
+		freq := 1e9 / *coeff
 		r.cfg.TSCFreq = freq
-		tsc.SetFreq(freq)
-		tsc.Calibrate() // Reset offset.
+		tsc.CalibrateWithCoeffOffset(*coeff, *offset)
 		r.cfg.Source = "option"
 	} else {
-		r.cfg.TSCFreq = tsc.Frequency
-		r.cfg.Source = tsc.FreqSource
+		freq := *tscFreq
+		if freq != 0 {
+			r.cfg.TSCFreq = freq
+			tsc.SetFreq(freq)
+			tsc.Calibrate() // Reset offset.
+			r.cfg.Source = "option"
+		} else {
+			r.cfg.TSCFreq = tsc.Frequency
+			r.cfg.Source = tsc.FreqSource
+		}
 	}
 
 	cpuFlag := fmt.Sprintf("%s_%d", cpu.X86.Signature, cpu.X86.SteppingID)
 
-	fmt.Printf("cpu: %s, tsc_freq: %.9f, source: %s\n", cpuFlag, tsc.Frequency, r.cfg.Source)
+	fmt.Printf("cpu: %s, tsc_freq: %.9f, offset: %d, source: %s\n", cpuFlag, tsc.Frequency, tsc.Offset, r.cfg.Source)
 
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -167,30 +188,55 @@ func takeCPU(ctx context.Context, idle bool) {
 func (r *runner) doJobLoop(thread int, wg *sync.WaitGroup) {
 	defer wg.Done()
 
+	minDelta, minDeltaABS := int64(0), math.MaxFloat64
+	maxDelta, maxDeltaABS := int64(0), float64(0)
+
+	cmpTo := "tsc"
+	if *cmpsys {
+		cmpTo = "sys_clock2"
+	}
+
 	for i := 0; i < int(r.cfg.JobTime); i++ {
 
 		time.Sleep(time.Second)
-		tscT := tsc.UnixNano()
-		wall := time.Now().UnixNano()
-		delta := tscT - wall
+		clock2 := compareFunc
+		clock1 := time.Now().UnixNano()
+		delta := clock2 - clock1
 		r.deltas[thread][i] = delta
+
+		deltaABS := math.Abs(float64(delta))
+		if deltaABS < minDeltaABS {
+			minDeltaABS = deltaABS
+			minDelta = delta
+		}
+		if deltaABS > maxDeltaABS {
+			maxDeltaABS = deltaABS
+			maxDelta = delta
+		}
+
 		if r.cfg.Print {
-			fmt.Printf("thread: %d, wall_clock: %d, tsc: %d, delta: %.2fus\n",
-				thread, wall, tscT, float64(delta)/float64(time.Microsecond))
+			fmt.Printf("thread: %d, sys_clock: %d, %s: %d, delta: %.2fus\n",
+				thread, clock1, cmpTo, clock2, float64(delta)/float64(time.Microsecond))
 		}
 	}
-	fmt.Printf("thread: %d, first_delta: %.2fus, last_delta: %.2fus\n",
+	fmt.Printf("thread: %d, first_delta: %.2fus, last_delta: %.2fus, min_delta: %.2fus, max_delta: %.2fus\n",
 		thread,
 		float64(r.deltas[thread][0])/float64(time.Microsecond),
-		float64(r.deltas[thread][r.cfg.JobTime-1])/float64(time.Microsecond))
-
+		float64(r.deltas[thread][r.cfg.JobTime-1])/float64(time.Microsecond),
+		float64(minDelta)/float64(time.Microsecond),
+		float64(maxDelta)/float64(time.Microsecond))
 }
 
 func (r *runner) printDeltas() {
 
 	p := plot.New()
 
-	p.Title.Text = "TSC - Wall Clock"
+	cmpTo := "TSC"
+	if *cmpsys {
+		cmpTo = "Syc Clock2"
+	}
+
+	p.Title.Text = fmt.Sprintf("%s - Sys Clock", cmpTo)
 	p.X.Label.Text = "Time(s)"
 	p.Y.Label.Text = "Delta(us)"
 
@@ -203,7 +249,7 @@ func (r *runner) printDeltas() {
 		}
 	}
 
-	if err := p.Save(10*vg.Inch, 10*vg.Inch, fmt.Sprintf("longdrift_%d.PNG", time.Now().Unix())); err != nil {
+	if err := p.Save(10*vg.Inch, 10*vg.Inch, fmt.Sprintf("longdrift_%s.PNG", time.Now().Format(time.RFC3339))); err != nil {
 		panic(err)
 	}
 }
