@@ -32,7 +32,7 @@ var (
 	coeff             = flag.Float64("coeff", 0, "")
 	offset            = flag.Int64("offset", 0, "")
 	cmpsys            = flag.Bool("cmp_sys", false, "compare two system clock but not system clock and tsc clock")
-	InOrder           = flag.Bool("in_order", false, "get tsc register in-order (with lfence)")
+	inOrder           = flag.Bool("in_order", false, "get tsc register in-order (with lfence)")
 )
 
 var compareFunc = tsc.UnixNano()
@@ -55,7 +55,7 @@ func main() {
 	if *cmpsys {
 		compareFunc = time.Now().UnixNano()
 	}
-	if *InOrder {
+	if *inOrder {
 		tsc.ForbidOutOfOrder()
 	}
 
@@ -110,6 +110,12 @@ func (r *runner) run() {
 		}
 	}
 
+	options := ""
+	flag.VisitAll(func(f *flag.Flag) {
+		options += fmt.Sprintf(" -%s %s", f.Name, f.Value)
+	})
+
+	fmt.Printf("testing with options:%s\n", options)
 	cpuFlag := fmt.Sprintf("%s_%d", cpu.X86.Signature, cpu.X86.SteppingID)
 
 	fmt.Printf("cpu: %s, tsc_freq: %.9f, offset: %d, source: %s\n", cpuFlag, tsc.Frequency, tsc.Offset, r.cfg.Source)
