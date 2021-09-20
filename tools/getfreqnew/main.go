@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"math"
+	"runtime"
 	"time"
 
 	"github.com/templexxx/cpu"
@@ -12,11 +13,15 @@ import (
 )
 
 var (
-	sample   = flag.Int("sample", 10, "number of samples")
-	duration = flag.Int64("duration", 1000, "duration(ms) between two timestamp, tsc_ freq = (tsc_b - tsc_a) / (wall_clock_b - wall_clock_a)")
+	sample   = flag.Int("sample", 100, "number of samples, the more samples the better result")
+	duration = flag.Int64("duration", 250, "duration(ms) between two timestamp, we need a bit longer duration for make result useful in long term")
 )
 
-const sleepDuration = time.Second
+const (
+	sleepDuration          = time.Second
+	minTSCDeltaMac   int64 = 800
+	minTSCDeltaLinux int64 = 800
+)
 
 func main() {
 	flag.Parse()
@@ -34,6 +39,11 @@ func main() {
 		cnt = 2
 	}
 
+	minTSCDelta := minTSCDeltaLinux
+	if runtime.GOOS == `darwin` {
+		minTSCDelta = minTSCDeltaMac
+	}
+
 	du := time.Duration(*duration) * time.Millisecond
 	if du == 0 {
 		du = sleepDuration
@@ -42,25 +52,34 @@ func main() {
 	start := time.Now()
 
 	freqs := make([]float64, cnt)
+	tscs := make([]int64, cnt*2)
+	walls := make([]int64, cnt*2)
 
 	for j := 0; j < cnt; j++ { // Try to find the best one inside 64 tries (avoiding jitter).
 		md0, tscc0, wallc0 := getClosestTSCWall(256)
-		if md0 > 800 {
-			log.Fatalf("the min tsc delta too big, exp <= 800, but got: %d", md0)
+		if md0 > minTSCDelta {
+			log.Fatalf("the min tsc delta too big, exp <= %d, but got: %d", minTSCDelta, md0)
 		}
-		time.Sleep(sleepDuration)
+		time.Sleep(du)
 		md1, tscc1, wallc1 := getClosestTSCWall(256)
-		if md1 > 800 {
-			log.Fatalf("the min tsc delta too big, exp <= 800, but got: %d", md1)
+		if md1 > minTSCDelta {
+			log.Fatalf("the min tsc delta too big, exp <= %d, but got: %d", minTSCDelta, md1)
 		}
 
-		if wallc1-wallc0 < int64(sleepDuration) {
-			log.Fatalf("wall clock goes backwards, exp %s, but got: %.2fms", sleepDuration.String(), float64(wallc1-wallc0)/float64(time.Millisecond))
+		if wallc1-wallc0 < int64(du) {
+			log.Fatalf("wall clock goes backwards, exp %s, but got: %.2fms", du.String(), float64(wallc1-wallc0)/float64(time.Millisecond))
 		}
 
 		freq := (float64(tscc1-tscc0) / float64(wallc1-wallc0)) * 1e9
 		freqs[j] = freq
-		fmt.Printf("round: %d freq is: %.9f, min tsc deltas are: %d, %d\n", j, freq, md0, md1)
+		fmt.Printf("round: %d freq is: %.9f, min tsc deltas are: %d, %d, duration of closest wallclock: %.2fms\n",
+			j, freq, md0, md1, float64(wallc1-wallc0)/1000/1000)
+
+		tscs[j*2] = tscc0
+		tscs[j*2+1] = tscc1
+
+		walls[j*2] = wallc0
+		walls[j*2+1] = wallc1
 	}
 
 	cost := time.Now().Sub(start)
@@ -77,6 +96,18 @@ func main() {
 	fmt.Println("-------")
 	fmt.Printf("origin freq is: %.9f\n", tsc.Frequency)
 	fmt.Printf("avg freq is: %.9f\n", avgFreq)
+
+	c, offset := simpleLinearRegression(tscs, walls)
+	fmt.Printf("result of simple linear regression, coeff: %.16f, offset: %d\n", c, offset)
+
+	avgPredictDelta := float64(0)
+	for i := range tscs {
+		predict := int64(float64(tscs[i])*c) + offset
+		act := walls[i]
+		avgPredictDelta += math.Abs(float64(predict) - float64(act))
+	}
+	avgPredictDelta = avgPredictDelta / float64(len(tscs))
+	fmt.Printf("avg abs delta of prediction made by simple linear regression and real clock: %.2fus\n", avgPredictDelta/1000)
 }
 
 // getClosestTSCWall tries to get the closest tsc register value nearby a certain clock in a loop.
@@ -134,4 +165,46 @@ func getClosestTSCWall(n int) (minDelta, tscClock, wall int64) {
 
 func isEven(n int) bool {
 	return n&1 == 0
+}
+
+// class SimpleLinearRegression(object):
+// """
+// 简单线性回归方程，即一元线性回归,只有一个自变量，估值函数为: y = b0 + b1 * x
+// """
+// def __init__(self):
+// self.b0 = 0
+// self.b1 = 0
+// def fit(self, x: list, y: list):
+// n = len(x)
+// x_mean = sum(x) / n
+// y_mean = sum(y) / n
+// dinominator = 0
+// numerator = 0
+// for xi, yi in zip(x, y):
+// numerator += (xi - x_mean) * (yi - y_mean)
+// dinominator += (xi - x_mean) ** 2
+// self.b1 = numerator / dinominator
+// self.b0 = y_mean - self.b1 * x_mean
+//
+// def pridict(self, x):
+// return self.b0 + self.b1 * x
+func simpleLinearRegression(tscs, walls []int64) (coeff float64, offset int64) {
+
+	tmean, wmean := float64(0), float64(0)
+	for i := range tscs {
+		tmean += float64(tscs[i])
+		wmean += float64(walls[i])
+	}
+	tmean = tmean / float64(len(tscs))
+	wmean = wmean / float64(len(walls))
+
+	denominator, numerator := float64(0), float64(0)
+	for i := range tscs {
+		numerator += (float64(tscs[i]) - tmean) * (float64(walls[i]) - wmean)
+		denominator += math.Pow(float64(tscs[i])-tmean, 2)
+	}
+
+	coeff = numerator / denominator
+
+	return coeff, int64(wmean - coeff*tmean)
 }
