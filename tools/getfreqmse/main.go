@@ -170,11 +170,11 @@ type tscWall struct {
 
 func calibrate(n int) (minDelta, tscClock, wall uint64) {
 
-	// 256 is enough for finding lowest wall clock cost in most cases.
+	// 256 is enough for finding the lowest wall clock cost in most cases.
 	// Although time.Now() is using VDSO to get time, but it's unstable,
 	// sometimes it will take more than 1000ns,
 	// we have to use a big loop(e.g. 256) to get the "real" clock.
-	// And it won't take a long time to finish the calibrate job, only about 20µs.
+	// And it won't take a long time to finish calibrating job, only about 20µs.
 	// [tscClock, wc, tscClock, wc, ..., tscClock]
 	timeline := make([]uint64, n+n+1)
 
@@ -189,7 +189,7 @@ func calibrate(n int) (minDelta, tscClock, wall uint64) {
 	minDelta = uint64(math.MaxUint64)
 	minIndex := 1 // minIndex is wall clock index where has minDelta.
 
-	// time.Now()'s precision is only µs (on MacOS),
+	// time.Now()'s precision is only µs (on macOS),
 	// which means we will get multi same wall clock in timeline,
 	// and the middle one is closer to the real time in statistics.
 	// Try to find the minimum delta when wall clock is in the "middle".
