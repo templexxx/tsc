@@ -241,12 +241,13 @@ func (r *runner) doJobLoop(thread int) {
 				thread, clock1, cmpTo, clock2, float64(delta)/float64(time.Microsecond))
 		}
 	}
-	fmt.Printf("thread: %d, first_delta: %.2fus, last_delta: %.2fus, min_delta: %.2fus, max_delta: %.2fus\n",
+	fmt.Printf("thread: %d, first_delta: %.2fus, last_delta: %.2fus, min_delta: %.2fus, max_delta: %.2fus, every_sec_add: %.2fus\n",
 		thread,
 		float64(r.deltas[thread][0])/float64(time.Microsecond),
 		float64(r.deltas[thread][r.cfg.JobTime-1])/float64(time.Microsecond),
 		float64(minDelta)/float64(time.Microsecond),
-		float64(maxDelta)/float64(time.Microsecond))
+		float64(maxDelta)/float64(time.Microsecond),
+		(float64(r.deltas[thread][r.cfg.JobTime-1])-float64(r.deltas[thread][0]))/float64(r.cfg.JobTime))
 }
 
 func (r *runner) printDeltas() {
