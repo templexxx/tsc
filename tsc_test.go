@@ -20,8 +20,8 @@ func TestGetInOrder(t *testing.T) {
 	}
 
 	n := 4096
-	ret0 := make([]uint64, n)
-	ret1 := make([]uint64, n)
+	ret0 := make([]int64, n)
+	ret1 := make([]int64, n)
 
 	for i := range ret0 {
 		ret0[i] = GetInOrder()

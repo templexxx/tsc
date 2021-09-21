@@ -2,7 +2,9 @@
 
 package tsc
 
-import "time"
+func init() {
+	UnixNano = sysClock
+}
 
 // Calibrate calibrates tsc & wall clock.
 //
@@ -14,8 +16,6 @@ func Calibrate() {
 
 	return
 }
-
-var unixNano = time.Now().UnixNano
 
 // GetInOrder gets tsc value in strictly order.
 // It's used for helping calibrate to avoid out-of-order issues.

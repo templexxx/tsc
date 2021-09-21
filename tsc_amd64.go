@@ -8,25 +8,38 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/templexxx/tsc/internal/xbytes"
+
 	"github.com/templexxx/cpu"
+)
+
+var (
+	// coeffOffset is a 16 bytes slice:
+	// |          |          |
+	// 0         8B          16B
+	// |   coeff |   offset  |
+	// Combine them together for atomic operation, because they are a pair must be used in the same function call.
+	//
+	// coeff (coefficient) * tsc_register + offset = unix_timestamp_nano_seconds.
+	// coeff is a float64, offset is an int64.
+	//
+	// We could regard coeff as the inverse of TSCFrequency(GHz) (actually it just has mathematics property)
+	// for avoiding future dividing.
+	// MUL gets much better performance than DIV.
+	coeffOffset = xbytes.MakeAlignedBlock(16, 64)
 )
 
 var (
 	// padding for reducing cache pollution.
 	_      [cpu.X86FalseSharingRange]byte
-	offset int64 // offset + toNano(tsc) = unix nano
+	Offset int64
 	_      [cpu.X86FalseSharingRange]byte
 
 	Frequency float64 = 0 // TSC frequency.
-	// coeff (coefficient) * tsc = nano seconds.
-	// coeff is the inverse of TSCFrequency(GHz)
-	// for avoiding future dividing.
-	// MUL gets much better performance than DIV.
+
 	coeff float64 = 0
 	_     [cpu.X86FalseSharingRange]byte
 )
-
-var unixNano = unixNanoTSCfence
 
 func init() {
 
@@ -36,16 +49,16 @@ func init() {
 func reset() bool {
 	if enableTSC() {
 		enabled = 1
-		if IsAllowBackwards() {
-			unixNano = unixNanoTSC
+		if IsOutOfOrder() {
+			UnixNano = unixNanoTSC
 		} else {
-			unixNano = unixNanoTSCfence
+			UnixNano = unixNanoTSCfence
 		}
 		return true
 	} else {
 		enabled = 0
 		FreqSource = ""
-		unixNano = time.Now().UnixNano
+		UnixNano = sysClock
 		return false
 	}
 }
@@ -129,6 +142,7 @@ func isHardwareSupported() bool {
 	}
 
 	// Some instructions need AVX, see tsc_amd64.s for details.
+	// And we need AVX supports for 16 Bytes atomic store/load, see internal/xatomic for deatils.
 	// Actually, it's hardly to find a CPU without AVX supports in present. :)
 	// And it's weird that a CPU has invariant TSC but doesn't have AVX.
 	if !cpu.X86.HasAVX {
@@ -174,7 +188,7 @@ func checkDelta() bool {
 
 func setOffset(ns, tsc int64) {
 	off := ns - int64(float64(tsc)*coeff)
-	atomic.StoreInt64(&offset, off)
+	atomic.StoreInt64(&Offset, off)
 }
 
 type tscWall struct {
@@ -234,6 +248,18 @@ func Calibrate() {
 
 	_, tsc, wall := fastCalibrate()
 	setOffset(wall, tsc)
+}
+
+// CalibrateWithCoeffOffset calibrates coefficient & offset to wall_clock by variables.
+func CalibrateWithCoeffOffset(c float64, offset int64) {
+
+	if !Enabled() {
+		return
+	}
+
+	coeff = c
+	Frequency = 1e9 / coeff
+	atomic.StoreInt64(&Offset, offset)
 }
 
 // fastCalibrate calibrates tsc clock and wall clock in a fast way,

@@ -40,7 +40,7 @@ TEXT ·unixNanoTSC(SB), NOSPLIT, $0
 	VCVTSI2SDQ  tsc, ftsc, ftsc      // ftsc = float64(tsc)
 	VMULSD      ·coeff(SB), ftsc, ns // ns = coeff * fstc
 	VCVTTSD2SIQ ns, un               // un = int64(ns)
-	ADDQ        ·offset(SB), un      // un += offset
+	ADDQ        ·Offset(SB), un      // un += offset
 	MOVQ        un, ret+0(FP)
 	RET
 
@@ -56,6 +56,6 @@ TEXT ·unixNanoTSCfence(SB), NOSPLIT, $0
 	VCVTSI2SDQ  tsc, ftsc, ftsc      // ftsc = float64(tsc)
 	VMULSD      ·coeff(SB), ftsc, ns // ns = coeff * fstc
 	VCVTTSD2SIQ ns, un               // un = int64(ns)
-	ADDQ        ·offset(SB), un      // un += offset
+	ADDQ        ·Offset(SB), un      // un += offset
 	MOVQ        un, ret+0(FP)
 	RET

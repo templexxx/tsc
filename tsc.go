@@ -1,5 +1,7 @@
 package tsc
 
+import "time"
+
 var (
 	supported int64 = 0 // Supported invariant TSC or not.
 	stable    int64 = 0 // TSC frequency is stable or not. (If not, we may have big gap between wall clock after long run)
@@ -7,7 +9,7 @@ var (
 	enabled   int64 = 0 // TSC clock source is enabled or not, if yes, getting timestamp by tsc register.
 	// Set it to 1 by invoke AllowOutOfOrder() if out-of-order execution is acceptable.
 	// e.g., for logging, backwards is okay in nanoseconds level.
-	allowOutOfOrder int64 = 0
+	allowOutOfOrder int64 = 1
 )
 
 // FreqSource is the source of tsc frequency.
@@ -52,12 +54,14 @@ const (
 // we need to be careful to deal with the order (use barrier).
 //
 // Although I have implemented a tsc getting method with order,
-// Go is not designed for HPC, and it's own benchmark testing is
+// Go is not designed for HPC, and its own benchmark testing is
 // enough in most cases. I think I should go further to explore to
 // make sure it's best practice for counting cycles.
 // See GetInOrder in tsc_amd64.s for more details.
-func UnixNano() int64 {
-	return unixNano()
+var UnixNano func() int64
+
+func sysClock() int64 {
+	return time.Now().UnixNano()
 }
 
 // Enabled indicates TSC clock source is enabled or not (using TSC register as clock source).
@@ -80,13 +84,34 @@ func Stable() bool {
 //
 // Not threads safe.
 func AllowOutOfOrder() {
+
+	if !Supported() {
+		return
+	}
+
 	allowOutOfOrder = 1
+
+	reset()
 }
 
-// IsAllowBackwards returns allow backwards true or false.
+// ForbidOutOfOrder sets allowOutOfOrder false.
 //
 // Not threads safe.
-func IsAllowBackwards() bool {
+func ForbidOutOfOrder() {
+
+	if !Supported() {
+		return
+	}
+
+	allowOutOfOrder = 0
+
+	reset()
+}
+
+// IsOutOfOrder returns allow out-of-order or not.
+//
+// Not threads safe.
+func IsOutOfOrder() bool {
 	return allowOutOfOrder == 1
 }
 
