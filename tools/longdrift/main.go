@@ -66,11 +66,6 @@ func main() {
 		cmpClock = tscClock
 	}
 
-	for i := 0; i < 10; i++ {
-		fmt.Println(cmpClock())
-		time.Sleep(5 * time.Microsecond)
-	}
-
 	if *inOrder {
 		tsc.ForbidOutOfOrder()
 	}
