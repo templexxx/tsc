@@ -247,7 +247,7 @@ func (r *runner) doJobLoop(thread int) {
 		float64(r.deltas[thread][r.cfg.JobTime-1])/float64(time.Microsecond),
 		float64(minDelta)/float64(time.Microsecond),
 		float64(maxDelta)/float64(time.Microsecond),
-		(float64(r.deltas[thread][r.cfg.JobTime-1])-float64(r.deltas[thread][0]))/float64(r.cfg.JobTime))
+		(float64(r.deltas[thread][r.cfg.JobTime-1])-float64(r.deltas[thread][0]))/float64(r.cfg.JobTime)/1000)
 }
 
 func (r *runner) printDeltas() {
