@@ -24,7 +24,7 @@ import (
 var (
 	jobTime           = flag.Int64("job_time", 600, "unit: seconds")
 	enableCalibrate   = flag.Bool("enable_calibrate", false, "enable calibrate will help to catch up system clock")
-	calibrateInterval = flag.Int64("calibrate_interval", 30, "unit: seconds")
+	calibrateInterval = flag.Int64("calibrate_interval", 300, "unit: seconds")
 	idle              = flag.Bool("idle", true, "if false it will run empty loops on each cores, try to simulate a busy cpu")
 	printDelta        = flag.Bool("print", false, "print every second delta")
 	threads           = flag.Int("threads", 1, "try to run comparing on multi cores")
@@ -34,8 +34,6 @@ var (
 	cmpsys            = flag.Bool("cmp_sys", false, "compare two system clock but not system clock and tsc clock")
 	inOrder           = flag.Bool("in_order", false, "get tsc register in-order (with lfence)")
 )
-
-var compareFunc = tsc.UnixNano()
 
 type Config struct {
 	JobTime           int64
@@ -48,13 +46,31 @@ type Config struct {
 	Source            string
 }
 
+var cmpClock func() int64
+
+func sysClock() int64 {
+	return time.Now().UnixNano()
+}
+
+func tscClock() int64 {
+	return tsc.UnixNano()
+}
+
 func main() {
 
 	flag.Parse()
 
 	if *cmpsys {
-		compareFunc = time.Now().UnixNano()
+		cmpClock = sysClock
+	} else {
+		cmpClock = tscClock
 	}
+
+	for i := 0; i < 10; i++ {
+		fmt.Println(cmpClock())
+		time.Sleep(5 * time.Microsecond)
+	}
+
 	if *inOrder {
 		tsc.ForbidOutOfOrder()
 	}
@@ -75,15 +91,17 @@ func main() {
 
 	r := &runner{cfg: &cfg, deltas: deltas}
 
-	r.run()
+	r.run(cmpClock)
 }
 
 type runner struct {
 	cfg    *Config
 	deltas [][]int64
+
+	wg *sync.WaitGroup
 }
 
-func (r *runner) run() {
+func (r *runner) run(cmpClock func() int64) {
 
 	if !tsc.Supported() {
 		fmt.Println("tsc unsupported")
@@ -146,9 +164,12 @@ func (r *runner) run() {
 
 	wg := new(sync.WaitGroup)
 	wg.Add(r.cfg.Threads)
+	r.wg = wg
 
 	for i := 0; i < r.cfg.Threads; i++ {
-		go r.doJobLoop(i, wg)
+		go func(i int) {
+			r.doJobLoop(i)
+		}(i)
 	}
 	wg.Wait()
 	cancel()
@@ -191,8 +212,8 @@ func takeCPU(ctx context.Context, idle bool) {
 	}
 }
 
-func (r *runner) doJobLoop(thread int, wg *sync.WaitGroup) {
-	defer wg.Done()
+func (r *runner) doJobLoop(thread int) {
+	defer r.wg.Done()
 
 	minDelta, minDeltaABS := int64(0), math.MaxFloat64
 	maxDelta, maxDeltaABS := int64(0), float64(0)
@@ -205,7 +226,7 @@ func (r *runner) doJobLoop(thread int, wg *sync.WaitGroup) {
 	for i := 0; i < int(r.cfg.JobTime); i++ {
 
 		time.Sleep(time.Second)
-		clock2 := compareFunc
+		clock2 := cmpClock()
 		clock1 := time.Now().UnixNano()
 		delta := clock2 - clock1
 		r.deltas[thread][i] = delta
