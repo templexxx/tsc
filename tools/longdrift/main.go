@@ -223,7 +223,8 @@ func (r *runner) doJobLoop(thread int) {
 		time.Sleep(time.Second)
 		clock2 := cmpClock()
 		clock1 := time.Now().UnixNano()
-		delta := clock2 - clock1
+		clock22 := cmpClock()
+		delta := (clock2+clock22)/2 - clock1
 		r.deltas[thread][i] = delta
 
 		deltaABS := math.Abs(float64(delta))
