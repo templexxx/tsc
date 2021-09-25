@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"math"
+	"math/rand"
 	"runtime"
 	"time"
 
@@ -13,36 +14,50 @@ import (
 )
 
 var (
-	sample      = flag.Int("sample", 1024, "number of samples, the more samples the better result")
-	duration    = flag.Int64("duration", 10, "duration(ms) between two timestamp, we need a bit longer duration for make result useful in long term")
-	printSample = flag.Bool("print", false, "print every sample")
+	sample        = flag.Int("sample", 128, "number of samples, the more samples the better result (not just number of samples, the term gets longer too)")
+	duration      = flag.Int64("duration", 16, "duration(ms) between two timestamp, we need a bit longer duration for make result better in long term")
+	printSample   = flag.Bool("print", false, "print every sample")
+	withIntercept = flag.Bool("offset", false, "using simple linear regression with intercept to get offset")
 )
 
 const (
-	sleepDuration          = time.Second
-	minTSCDeltaMac   int64 = 800
-	minTSCDeltaLinux int64 = 800
+	sleepDuration = time.Second
+	// Actually it depends on tsc crystal frequency & speed of CPU. I don't think userspace fast clock is meaningful on a slow machine.
+	// For a machine with good enough hardware, the min tsc delta mustn't be big.
+	minTSCDeltaMac     int64 = 800
+	minTSCDeltaLinux   int64 = 640 // System clock's speed is faster on Linux.
+	triesToFindClosest       = 256 // If too small, hard to ensure getting minTSCDelta.
+	minSamples               = 32
+)
+
+var (
+	simulateFuncName = "simple linear regression without intercept"
 )
 
 func main() {
 	flag.Parse()
 
 	if !tsc.Supported() {
-		fmt.Println("tsc unsupported")
-		return
+		log.Fatal("tsc unsupported")
 	}
 
 	tsc.ForceTSC() // Enable TSC force.
 
 	cnt := *sample
 
-	if cnt < 2 {
-		cnt = 2
+	if cnt < minSamples {
+		cnt = minSamples
+	}
+
+	if *withIntercept {
+		simulateFuncName = "simple linear regression with intercept"
 	}
 
 	minTSCDelta := minTSCDeltaLinux
 	if runtime.GOOS == `darwin` {
 		minTSCDelta = minTSCDeltaMac
+	} else if runtime.GOOS != `linux` {
+		log.Fatalf("sorry, haven't been well tested on: %s", runtime.GOOS)
 	}
 
 	du := time.Duration(*duration) * time.Millisecond
@@ -55,20 +70,17 @@ func main() {
 	freqs := make([]float64, cnt)
 	tscDeltas := make([]float64, cnt)
 	sysDeltas := make([]float64, cnt)
-	tscs := make([]int64, cnt*2)
-	syss := make([]int64, cnt*2)
+	tscs := make([]float64, cnt*2)
+	syss := make([]float64, cnt*2)
 
-	minMD := int64(math.MaxInt64)
-	minTSC, minSys := int64(0), int64(0)
-
-	for j := 0; j < cnt; j++ { // Try to find the best one inside 64 tries (avoiding jitter).
-		md0, tscc0, sys0 := getClosestTSCSys(256)
+	for j := 0; j < cnt; j++ {
+		md0, tscc0, sys0 := getClosestTSCSys(triesToFindClosest)
 		if md0 > minTSCDelta {
 			log.Fatalf("the min tsc delta too big, exp <= %d, but got: %d", minTSCDelta, md0)
 		}
 
 		time.Sleep(du)
-		md1, tscc1, sys1 := getClosestTSCSys(256)
+		md1, tscc1, sys1 := getClosestTSCSys(triesToFindClosest)
 		if md1 > minTSCDelta {
 			log.Fatalf("the min tsc delta too big, exp <= %d, but got: %d", minTSCDelta, md1)
 		}
@@ -88,22 +100,11 @@ func main() {
 		tscDeltas[j] = float64(tscc1 - tscc0)
 		sysDeltas[j] = float64(sys1 - sys0)
 
-		if md0 < minMD {
-			minMD = md0
-			minTSC = tscc0
-			minSys = sys0
-		}
-		if md1 < minMD {
-			minMD = md1
-			minTSC = tscc1
-			minSys = sys1
-		}
+		tscs[j*2] = float64(tscc0)
+		tscs[j*2+1] = float64(tscc1)
 
-		tscs[j*2] = tscc0
-		tscs[j*2+1] = tscc1
-
-		syss[j*2] = sys0
-		syss[j*2+1] = sys1
+		syss[j*2] = float64(sys0)
+		syss[j*2+1] = float64(sys1)
 	}
 
 	cost := time.Now().Sub(start)
@@ -113,31 +114,84 @@ func main() {
 		avgFreq += f
 	}
 	avgFreq = avgFreq / float64(cnt)
+	avgCoeff := 1 / (avgFreq / 1e9)
+	avgOffset := int64(syss[cnt*2-1]) - int64(tscs[cnt*2-1]*avgCoeff)
 
 	cpuFlag := fmt.Sprintf("%s_%d", cpu.X86.Signature, cpu.X86.SteppingID)
 
 	fmt.Printf("cpu: %s, job cost: %.2fs\n", cpuFlag, cost.Seconds())
 	fmt.Println("-------")
-	fmt.Printf("origin freq is: %.9f\n", tsc.Frequency)
-	fmt.Printf("avg freq is: %.9f\n", avgFreq)
+	fmt.Printf("origin coeffcient: %.16f, freq: %.16f, offset: %d(%s)\n", tsc.Coeff, tsc.Frequency, tsc.Offset, nanosFmt(tsc.Offset))
+	fmt.Printf("avg coeffcient: %.16f, freq: %.16f\n", avgCoeff, avgFreq)
+	fmt.Println("-------")
+	var coeff float64
+	var offset int64
 
-	c := simpleLinearRegression(tscDeltas, sysDeltas)
+	trainSetCnt := int(float64(cnt) * 0.8)
 
-	offset := minSys - int64(float64(minTSC)*c)
+	rand.Seed(time.Now().UnixNano())
 
-	fmt.Printf("result of simple linear regression, coeff: %.16f, freq: %.16f, offset: %d\n", c, 1e9/c, offset)
+	if !*withIntercept {
+		rand.Shuffle(cnt, func(i, j int) {
+			tscDeltas[i], tscDeltas[j] = tscDeltas[j], tscDeltas[i]
+			sysDeltas[i], sysDeltas[j] = sysDeltas[j], sysDeltas[i]
+		})
+		coeff, _ = simpleLinearRegression(tscDeltas[:trainSetCnt], sysDeltas[:trainSetCnt])
+	} else {
+		rand.Shuffle(cnt*2, func(i, j int) {
+			tscs[i], tscs[j] = tscs[j], tscs[i]
+			syss[i], syss[j] = syss[j], syss[i]
+		})
 
+		trainSetCnt *= 2
+		coeff, offset = simpleLinearRegressionWithIntercept(tscs[:trainSetCnt], syss[:trainSetCnt])
+	}
+
+	fmt.Printf("result of %s, coeff: %.16f, freq: %.16f, offset: %d(%s)\n", simulateFuncName, coeff, 1e9/coeff, offset, nanosFmt(offset))
+	fmt.Println("-------")
 	avgPredictDelta := float64(0)
 	totalPredictDelta := float64(0)
-	for i := range tscDeltas {
-		predict := int64(float64(tscDeltas[i]) * c)
-		act := sysDeltas[i]
-		avgPredictDelta += math.Abs(float64(predict) - act)
-		totalPredictDelta += float64(predict) - act
+
+	avgPredictDeltaAvgFreq := float64(0)
+	totalPredictDeltaAvgFreq := float64(0)
+
+	if !*withIntercept {
+		for i := range tscDeltas[trainSetCnt:] {
+			predict := int64(tscDeltas[i+trainSetCnt] * coeff)
+			predictAvgFreq := int64(tscDeltas[i+trainSetCnt] * avgCoeff)
+
+			act := sysDeltas[i+trainSetCnt]
+
+			avgPredictDelta += math.Abs(float64(predict) - act)
+			totalPredictDelta += float64(predict) - act
+
+			avgPredictDeltaAvgFreq += math.Abs(float64(predictAvgFreq) - act)
+			totalPredictDeltaAvgFreq += float64(predictAvgFreq) - act
+		}
+		avgPredictDelta = avgPredictDelta / float64(len(tscDeltas)-trainSetCnt)
+
+	} else {
+		for i := range tscs[trainSetCnt:] {
+			predict := int64(tscs[i+trainSetCnt]*coeff) + offset
+			predictAvgFreq := int64(tscs[i+trainSetCnt]*avgCoeff) + avgOffset
+
+			act := syss[i+trainSetCnt]
+
+			avgPredictDelta += math.Abs(float64(predict) - act)
+			totalPredictDelta += float64(predict) - act
+
+			avgPredictDeltaAvgFreq += math.Abs(float64(predictAvgFreq) - act)
+			totalPredictDeltaAvgFreq += float64(predictAvgFreq) - act
+		}
+		avgPredictDelta = avgPredictDelta / float64(len(tscs)-trainSetCnt)
 	}
-	avgPredictDelta = avgPredictDelta / float64(len(tscDeltas))
-	fmt.Printf("prediction made by simple linear regression and real clock, avg abs delta %.2fus, total non-abs dealta: %.2fus\n",
-		avgPredictDelta/1000, totalPredictDelta/1000)
+
+	fmt.Printf("prediction made by %s and system clock, avg abs delta %.2fus, total non-abs dealta: %.2fus\n",
+		simulateFuncName, avgPredictDelta/1000, totalPredictDelta/1000)
+
+	avgPredictDeltaAvgFreq = avgPredictDeltaAvgFreq / float64(len(tscDeltas))
+	fmt.Printf("prediction made by avg frequency and system clock, avg abs delta %.2fus, total non-abs dealta: %.2fus\n",
+		avgPredictDeltaAvgFreq/1000, totalPredictDeltaAvgFreq/1000)
 }
 
 // getClosestTSCSys tries to get the closest tsc register value nearby the system clock in a loop.
@@ -199,7 +253,7 @@ func isEven(n int) bool {
 
 // simpleLinearRegression without intercept:
 // α = ∑𝑥𝑖𝑦𝑖 / ∑𝑥𝑖^2.
-func simpleLinearRegression(tscs, syss []float64) (coeff float64) {
+func simpleLinearRegression(tscs, syss []float64) (coeff float64, offset int64) {
 
 	denominator, numerator := float64(0), float64(0)
 	for i := range tscs {
@@ -209,5 +263,31 @@ func simpleLinearRegression(tscs, syss []float64) (coeff float64) {
 
 	coeff = numerator / denominator
 
-	return coeff
+	return coeff, 0
+}
+
+func simpleLinearRegressionWithIntercept(tscs, syss []float64) (coeff float64, offset int64) {
+
+	tmean, wmean := float64(0), float64(0)
+	for i := range tscs {
+		tmean += tscs[i]
+		wmean += syss[i]
+	}
+	tmean = tmean / float64(len(tscs))
+	wmean = wmean / float64(len(syss))
+
+	denominator, numerator := float64(0), float64(0)
+	for i := range tscs {
+		numerator += (tscs[i] - tmean) * (syss[i] - wmean)
+		denominator += math.Pow(tscs[i]-tmean, 2)
+	}
+
+	coeff = numerator / denominator
+
+	return coeff, int64(wmean - coeff*tmean)
+}
+
+func nanosFmt(ns int64) string {
+
+	return time.Unix(0, ns).Format(time.RFC3339Nano)
 }
