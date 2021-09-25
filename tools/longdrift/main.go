@@ -26,7 +26,7 @@ import (
 var (
 	jobTime           = flag.Int64("job_time", 1200, "unit: seconds")
 	enableCalibrate   = flag.Bool("enable_calibrate", false, "enable calibrate will help to catch up system clock")
-	calibrateInterval = flag.Int64("calibrate_interval", 600, "unit: seconds")
+	calibrateInterval = flag.Int64("calibrate_interval", 300, "unit: seconds")
 	idle              = flag.Bool("idle", true, "if false it will run empty loops on each cores, try to simulate a busy cpu")
 	printDetails      = flag.Bool("print", false, "print every second delta & calibrate result")
 	threads           = flag.Int("threads", 1, "try to run comparing on multi cores")
