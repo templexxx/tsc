@@ -66,14 +66,9 @@ func enableTSC() bool {
 		return false
 	}
 
-	calibrate(forceTSC == 1, false)
+	calibrateWithOffset(forceTSC == 1, false)
 
 	pass := isGoodClock()
-	if pass {
-		stable = 1
-	} else {
-		stable = 0
-	}
 
 	if forceTSC == 1 {
 		return true
@@ -197,7 +192,7 @@ func calibrateWithOffset(force, ignoreGoodClock bool) {
 // because the system clock may be calibrated by network (e.g. NTP).
 func Calibrate() {
 
-	calibrate(false, false)
+	calibrateWithOffset(false, false)
 }
 
 // isGoodClock checks tsc clock & system clock delta in a fast way.

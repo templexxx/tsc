@@ -1,106 +1,115 @@
-# tsc
-Get unix time (nanoseconds) in blazing low latency. About 10x~100x faster than time.Now().UnixNano(). 
+TSC
+===
 
-- __Time Stamp Counter (TSC)__
+Get unix time (nanoseconds) in blazing low latency with high precision. About 6x~10x faster than time.Now().UnixNano(). 
 
-  Based on CPU's TSC register. With Invariant TSC supports, we could get a reliable frequency even cross multi cores/CPUs.
+## Could be used in ...
 
-- __Low Latency__
+1. High performance log: as timestamp field
+2. Benchmark: as time measurement
+3. Just for fun: I have a cool clock.
 
-  Under 10ns to get each timestamp.
-  
-- __Stable__
+It's not a good idea to use this lib for replacing system clock everywhere, before using it please read this documents carefully.
 
-  Unlike time.Now(), the latency of tsc is stable.
-  
-  Although time.Now() is using VDSO to get time, but it's unstable,
-  sometimes it will take more than 1000ns.
+### Example1: Low latency trading
 
-- __High Precision__
+We want everything is fast in stock trading program (especially the speed of making money :D). Before marketing opens, we use NTP to force update machine's system clock, then the program run with this lib
+will get a good starting, the drift will be under control well if the frequency used by system is good enough.
 
-  tsc's precision is nanosecond.
+In this case, we could allow out-of-order for higher speed. Out-of-order could be ~10ns faster than in order version, it's important for trading function which total
+cost is within hundreds nanoseconds. Out-of-order may bring dozens nanoseconds jitter, not big deal for this case because
+what we want is just a faster timestamp for logging something.
 
-- __Calibrate__
+### Example2: Measure only one function cost
 
-  Could be calibrated according to wall clock periodically, no worry about NTP. More details: `func Calibrate()` in [tsc_amd64.go](tsc_amd64.go)
+For this case, we need in-order version for avoiding unexpected instructions going inside the function which we want to measure the speed.
+
+## Compare to System Clock
+
+1. Both of this lib & kernel are using TSC register if it's reliable. With Invariant TSC supports, we could get a reliable frequency even cross multi cores/CPUs.
+2. Much faster than system clock, under 10ns for each invoking.
+3. The cost of invoking is stable. Although time.Now() is using vDSO to get time, but it's not that stable either. 
+In Go, we need to switch to g0 then switch back for [vDSO need more stack space](https://github.com/golang/go/issues/20427) which
+makes things even "worse".
+4. This lib could be calibrated according to wall clock periodically. But in this duration, we may be far away from system clock because the adjustment made by NTP. More details: `func Calibrate()` in [tsc_amd64.go](tsc_amd64.go)
+5. Kernel adjusts tsc frequency by `adjtimex` too, `Calibrate()` will try best to catch up the changes made by kernel.
+6. Kernel doesn't like float, the precision of clock isn't as good as this one.
+7. This lib has a better implementation to measure the tsc frequency than kernel in some ways.
+
+### Why not use the same mechanism in kernel?
+
+1. I can't, kernel can do many things I can't do in userspace.
+2. There are multi ways to calibrate kernel clock, I can't enjoy them directly, what I can do is just catch up the result of kernel clock.
+
+### Why should I adjust clock by kernel clock?
+
+If I could do better in tsc frequency detection & precision, shouldn't be a good idea that ignore kernel clock?
+
+First, as I mentioned above I need to borrow the abilities of calibration which help to make kernel clock better. 
+The crystal of TSC is not as good as we expect, it's just a cheap crystal, we need adjust the frequency result time by time.
+
+Second, it'll make people confused if there are two different clocks and their results are quietly different. 
+
+### Drift testings examples
+
+platform: macOS Catalina, Intel Core i7-7700HQ
+
+measurement: [tools/longdrift](tools/longdrift/README.md) with default flags.
+
+1. testing time: 100s
+
+<img src="tools/longdrift/longdrift_2021-09-26T01:17:55+08:00.PNG" width = "400"/>
+
+2. testing time: 20mins
+
+3. testing time: 20mins (with Calibrate every 5mins)
+
+p.s.
+
+For macOS, the precision of system clock is just 1us. Which means delta within 1us is almost equal to zero.
 
 ## Performance
 
 |OS           |CPU           |benchmark           |    time.Now().UnixNano() ns/op   |  tsc.UnixNano() ns/op    |     delta   |
 |--------------------|--------------------|--------------------|----------------|---------------|-------------|
-|MacOS Catalina |Intel Core i7-7700HQ| BenchmarkUnixNano-8 |    72.8        |  7.65         | -89.49%     |
+|macOS Catalina |Intel Core i7-7700HQ| BenchmarkUnixNano-8 |    72.8        |  7.65         | -89.49%     |
 |Ubuntu 18.04 |Intel Core i5-8250U| BenchmarkUnixNano-8 |    47.7       |  8.41         | -82.36%     |
 |Ubuntu 20.04 |Intel Core i9-9920X| BenchmarkUnixNano-8 |    36.5       |  6.19         | -83.04%     |
 
-## Preparation
+### TODO new ABI in Go1.17 degrades performance
 
-If you need a really accurate clock, you should run [getfreq](tools/getfreq) first to get TSC frequency, then use [longdrift](tools/longdrift)
-to testing the frequency. You could find the best interval for invoking `tsc.Calibrate()` by [longdrift](tools/longdrift) too.
+The new ABI in Go1.17 brings register-based calling, but for assembly codes there is an adapter, it degrades performance around 0.x ns.
 
-After testing, you should set env_var(`TSC_FREQ_X`) to the best frequency for each server.
-
-If your application doesn't care the accuracy of clock too much, you could invoke `tsc.ResetEnabled(true)` for allowing unstable frequency.
-Although it's "unstable", we still run a simple checking for ensuring the result won't be too bad. 
-
-Get a more accurate TSC frequency is important for getting a closer result, which means within a duration, the drift between standard clock
-and TSC clock won't be too bad. Actually, even with an "accurate" TSC frequency, we could still get a bad result after a long run. 
-That caused by the unstable crystal frequency (both of wall clock crystal & tsc crystal), the frequency is a wave, but what we got was
-just a point of the wave. `tsc.Calibrate()`  could help to get an offset to fix the drift which getting bigger and bigger. The drift must
-be bigger and bigger, it's easy to understand it by the formula: `tsc_clock = tsc_value * coefficient(point_frequency) + offset`, when the
-coefficient fixed, as time goes by, the drift must get bigger.
+Waiting for ABI option to use register-based calling...
 
 ## Usage
 
 ```go
 package main
 
-import "github.com/templexxx/tsc"
+import (
+	"fmt"
+	"github.com/templexxx/tsc"
+)
 
 func main() {
-	ts := tsc.UnixNano()   
-	...
+	ts := tsc.UnixNano()   // Getting unix nano timestamp.
+	fmt.Println(ts, tsc.Enabled())  // Print result & tsc enabled or not.
 }
 ```
 
 If `tsc.Enabled() == true`, it'll use tsc register. If not, it'll wrap `time.Now().UnixNano()`.
 
-## Warning
+### Tips
 
-The crystal used by TSC is not that stable(and testing result maybe not reliable, because of
-the SMI), what's worse the frequency given by Intel manual maybe far away from the real frequency 
-(even same CPU model may have different frequency, and the delta is big enough to make your clock too slower/faster).
-
-Before using this lib, you should be sure what you need. If you really want a clock with high performance, please testing the tsc clock carefully.
-(there is a tool [longdrift](tools/longdrift) could help you observe the frequency wave. It's a good practice that run this tool on each server with
-different options at least one day.)
+1. Using tools provided by this repo to learn how it works: [calibrate](tools/calibrate/README.md), [longdrift](tools/longdrift/README.md).
+And these tools could help you to detect how stable the tsc register & this lib is in your environment.
+2. If your application doesn't care the accuracy of clock too much, you could invoke `tsc.ForceTSC()` for allowing unstable frequency.
+3. Invoke `tsc.Calibrate()`  periodically if you need to catch up system clock. 5 mins is a good start because the auto NTP adjust is always every 11 mins.
+4. Set in-order execution by `tsc.ForbidOutOfOrder()` when you need to measure time cost for short statements.
 
 ## Limitation
 
->- Linux Only
-> 
->   The precision of clock on Windows or macOS could not satisfy the tsc frequency detection well enough.
-> 
->- Intel Only
->
->   Only tested on Intel platform.
->
->- Invariant TSC supports
->   
->   Invariant TSC could make sure TSC got synced among multi CPUs.
->   They will be reset at same time, and run in same frequency.
->
->- Reliable TSC frequency 
-> 
->   The TSC frequency provided by Intel CPU must be accurate. 
->
->- AVX supports
->
->   Some instructions need AVX, see [tsc_amd64.s](tsc_amd64.s) for details.
->
->- No support on virtual machine
->
->   Have tested on AWS EC2, because of CPUID.15H is disabled. And tsc may won't work as we expect on a virtual machine.
->
->- Handle Limitation
->
->   If tsc can't be enabled, it will use time.Now().UnixNano() automatically.
+1. Linux Only: The precision/mechanism of clock on Windows or macOS could not satisfy the tsc frequency detection well enough, it won't be a good idea to use it in production env on Windows/macOS.
+2. Intel Enterprise CPU Only: Have tested on Intel platform only, and the testing shows home version's crystal is far away from stable. In other words, the crystal maybe too cheap.
+3. Unpredictable behavior on virtual machine: Not sure the TSC sync implementation in certain vm. 

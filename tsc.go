@@ -4,7 +4,6 @@ import "time"
 
 var (
 	supported int64 = 0 // Supported invariant TSC or not.
-	stable    int64 = 0 // TSC frequency is stable or not. (If not, we may have big gap between wall clock after long run)
 	forceTSC  int64 = 0 // Enable TSC no matter it's stable or not.
 	enabled   int64 = 0 // TSC clock source is enabled or not, if yes, getting timestamp by tsc register.
 	// Set it to 1 by invoke AllowOutOfOrder() if out-of-order execution is acceptable.
@@ -50,11 +49,6 @@ func Enabled() bool {
 // Supported indicates Invariant TSC supported.
 func Supported() bool {
 	return supported == 1
-}
-
-// Stable indicates TSC frequency is stable or not. (If not, we may have big gap between wall clock after long run)
-func Stable() bool {
-	return stable == 1
 }
 
 // AllowOutOfOrder sets allowOutOfOrder true.
