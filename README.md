@@ -58,7 +58,7 @@ measurement: [tools/longdrift](tools/longdrift/README.md) with default flags.
 
 1. testing time: 100s
 
-<img src="tools/longdrift/longdrift_2021-09-26T01:17:55+08:00.PNG" width = "400"/>
+<img src="tools/longdrift/longdrift_2021-09-26T01:17:55+08:00.PNG" width = "600" height="600"/>
 
 2. testing time: 20mins
 
