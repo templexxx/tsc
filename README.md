@@ -52,7 +52,31 @@ Second, it'll make people confused if there are two different clocks and their r
 
 ### Drift testings examples
 
+### macOS
+
 platform: macOS Catalina, Intel Core i7-7700HQ
+
+measurement: [tools/longdrift](tools/longdrift/README.md) with default flags.
+
+1. testing time: 100s
+
+<img src="tools/longdrift/longdrift_2021-09-26T01:17:55+08:00.PNG" width = "600" height="600"/>
+
+2. testing time: 20mins
+
+<img src="tools/longdrift/longdrift_2021-09-26T03:18:16+08:00.PNG" width = "600" height="600"/>
+
+4. testing time: 20mins (with Calibrate every 5mins)
+
+<img src="tools/longdrift/longdrift_2021-09-26T03:49:31+08:00.PNG" width = "600" height="600"/>
+
+p.s.
+
+For macOS, the precision of system clock is just 1us. Which means delta within 1us is almost equal to zero.
+
+### Linux
+
+platform: Ubuntu 18.04, Intel Core i5-8250U
 
 measurement: [tools/longdrift](tools/longdrift/README.md) with default flags.
 
@@ -64,9 +88,6 @@ measurement: [tools/longdrift](tools/longdrift/README.md) with default flags.
 
 3. testing time: 20mins (with Calibrate every 5mins)
 
-p.s.
-
-For macOS, the precision of system clock is just 1us. Which means delta within 1us is almost equal to zero.
 
 ## Performance
 
@@ -112,4 +133,10 @@ And these tools could help you to detect how stable the tsc register & this lib 
 
 1. Linux Only: The precision/mechanism of clock on Windows or macOS could not satisfy the tsc frequency detection well enough, it won't be a good idea to use it in production env on Windows/macOS.
 2. Intel Enterprise CPU Only: Have tested on Intel platform only, and the testing shows home version's crystal is far away from stable. In other words, the crystal maybe too cheap.
-3. Unpredictable behavior on virtual machine: Not sure the TSC sync implementation in certain vm. 
+3. Unpredictable behavior on virtual machine: Not sure the TSC sync implementation in certain vm (and cannot access CPUID detection for invariant TSC on some cloud even it has this feature). 
+
+## Reference
+
+1. [Question of linux gettimeofday on StackOverflow](https://stackoverflow.com/questions/13230719/how-is-the-microsecond-time-of-linux-gettimeofday-obtained-and-what-is-its-acc)
+2. [Question of TSC frequency variations with temperature on Intel community](https://community.intel.com/t5/Software-Tuning-Performance/TSC-frequency-variations-with-temperature/td-p/1098982)
+3. [Question of TSC frequency variations with temperature on Intel community(2)](https://community.intel.com/t5/Software-Tuning-Performance/TSC-frequency-variations-with-temperature/m-p/1126518)
