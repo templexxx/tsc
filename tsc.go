@@ -99,6 +99,8 @@ func IsOutOfOrder() bool {
 // Not thread safe, using it at application starting.
 func ForceTSC() bool {
 
+	forceTSC = 1
+
 	if Enabled() {
 		return true
 	}
@@ -106,8 +108,6 @@ func ForceTSC() bool {
 	if !Supported() {
 		return false
 	}
-
-	forceTSC = 1
 
 	return reset()
 }

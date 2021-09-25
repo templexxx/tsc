@@ -2,7 +2,6 @@ package tsc
 
 import (
 	"math"
-	"math/rand"
 	"sync/atomic"
 	"time"
 
@@ -67,7 +66,7 @@ func enableTSC() bool {
 		return false
 	}
 
-	Calibrate()
+	calibrate(forceTSC == 1, false)
 
 	pass := isGoodClock()
 	if pass {
@@ -111,14 +110,17 @@ func isHardwareSupported() bool {
 	return true
 }
 
-// Calibrate calibrates tsc clock.
-//
-// It's a good practice that run Calibrate periodically (every 10-15mins),
-// because the system clock may be calibrated by network (e.g. NTP).
-func Calibrate() {
+func calibrate(force, ignoreGoodClock bool) {
 
-	if !Enabled() || !isGoodClock() {
-		return
+	if !force {
+		if !Enabled() {
+			return
+		}
+	}
+	if !ignoreGoodClock {
+		if isGoodClock() {
+			return
+		}
 	}
 
 	cnt := samples
@@ -149,17 +151,53 @@ func Calibrate() {
 		}
 	}
 
-	trainSetCnt := int(float64(cnt) * 0.8)
-
-	rand.Seed(time.Now().UnixNano())
-
-	rand.Shuffle(cnt, func(i, j int) {
-		tscDeltas[i], tscDeltas[j] = tscDeltas[j], tscDeltas[i]
-		sysDeltas[i], sysDeltas[j] = sysDeltas[j], sysDeltas[i]
-	})
-	coeff, _ := simpleLinearRegression(tscDeltas[:trainSetCnt], sysDeltas[:trainSetCnt])
+	coeff, _ := simpleLinearRegression(tscDeltas, sysDeltas)
+	setOffset(coeff, minSys, minTSC)
 	atomic.StoreUint64(&Coeff, math.Float64bits(coeff))
-	setOffset(minSys, minTSC)
+}
+
+func calibrateWithOffset(force, ignoreGoodClock bool) {
+
+	if !force {
+		if !Enabled() {
+			return
+		}
+	}
+	if !ignoreGoodClock {
+		if isGoodClock() {
+			return
+		}
+	}
+
+	cnt := samples
+
+	tscs := make([]float64, cnt*2)
+	syss := make([]float64, cnt*2)
+
+	for j := 0; j < cnt; j++ {
+		_, tsc0, sys0 := getClosestTSCSys(getClosestTSCSysRetries)
+		time.Sleep(sampleDuration)
+		_, tsc1, sys1 := getClosestTSCSys(getClosestTSCSysRetries)
+
+		tscs[j*2] = float64(tsc0)
+		tscs[j*2+1] = float64(tsc1)
+
+		syss[j*2] = float64(sys0)
+		syss[j*2+1] = float64(sys1)
+	}
+
+	coeff, offset := simpleLinearRegressionWithIntercept(tscs, syss)
+	atomic.StoreInt64(&Offset, offset)
+	atomic.StoreUint64(&Coeff, math.Float64bits(coeff))
+}
+
+// Calibrate calibrates tsc clock.
+//
+// It's a good practice that run Calibrate periodically (every 10-15mins),
+// because the system clock may be calibrated by network (e.g. NTP).
+func Calibrate() {
+
+	calibrate(false, false)
 }
 
 // isGoodClock checks tsc clock & system clock delta in a fast way.
@@ -177,8 +215,9 @@ func isGoodClock() bool {
 	return true
 }
 
-func setOffset(ns, tsc int64) {
-	c := math.Float64frombits(atomic.LoadUint64(&Coeff))
+// setOffset sets offset by coefficient.
+func setOffset(coeff float64, ns, tsc int64) {
+	c := coeff
 	off := ns - int64(float64(tsc)*c)
 	atomic.StoreInt64(&Offset, off)
 }
@@ -198,6 +237,27 @@ func simpleLinearRegression(tscs, syss []float64) (coeff float64, offset int64) 
 	return coeff, 0
 }
 
+func simpleLinearRegressionWithIntercept(tscs, syss []float64) (coeff float64, offset int64) {
+
+	tmean, wmean := float64(0), float64(0)
+	for i := range tscs {
+		tmean += tscs[i]
+		wmean += syss[i]
+	}
+	tmean = tmean / float64(len(tscs))
+	wmean = wmean / float64(len(syss))
+
+	denominator, numerator := float64(0), float64(0)
+	for i := range tscs {
+		numerator += (tscs[i] - tmean) * (syss[i] - wmean)
+		denominator += math.Pow(tscs[i]-tmean, 2)
+	}
+
+	coeff = numerator / denominator
+
+	return coeff, int64(wmean - coeff*tmean)
+}
+
 // CalibrateWithCoeff calibrates coefficient to wall_clock by variables.
 //
 // Not thread safe, only for testing.
@@ -207,9 +267,9 @@ func CalibrateWithCoeff(c float64) {
 		return
 	}
 
-	atomic.StoreUint64(&Coeff, math.Float64bits(c))
 	_, tsc, wall := getClosestTSCSys(getClosestTSCSysRetries)
-	setOffset(wall, tsc)
+	setOffset(c, wall, tsc)
+	atomic.StoreUint64(&Coeff, math.Float64bits(c))
 }
 
 // getClosestTSCSys tries to get the closest tsc register value nearby the system clock in a loop.

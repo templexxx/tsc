@@ -17,6 +17,10 @@ func Calibrate() {
 	return
 }
 
+func calibrate(force, ignoreGoodClock bool) {
+	return
+}
+
 // GetInOrder gets tsc value in strictly order.
 // It's used for helping calibrate to avoid out-of-order issues.
 //
