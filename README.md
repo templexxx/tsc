@@ -52,6 +52,8 @@ Second, it'll make people confused if there are two different clocks and their r
 
 ### Drift testings examples
 
+Testing the delta of tsc clock & system clock for each second.
+
 ### macOS
 
 platform: macOS Catalina, Intel Core i7-7700HQ
@@ -72,9 +74,10 @@ measurement: [tools/longdrift](tools/longdrift/README.md) with default flags.
 
 p.s.
 
-For macOS, the precision of system clock is just 1us. Which means delta within 1us is almost equal to zero.
+1. For macOS, the precision of system clock is just 1us. Which means delta within 1us is almost equal to zero.
+2. macOS will update clock in background.
 
-### Linux
+### Linux(1)
 
 platform: Ubuntu 18.04, Intel Core i5-8250U
 
@@ -82,12 +85,24 @@ measurement: [tools/longdrift](tools/longdrift/README.md) with default flags.
 
 1. testing time: 100s
 
-<img src="tools/longdrift/longdrift_2021-09-26T01:17:55+08:00.PNG" width = "600" height="600"/>
+<img src="tools/longdrift/longdrift_2021-09-26T03:04:22+08:00.PNG" width = "600" height="600"/>
 
 2. testing time: 20mins
 
+<img src="tools/longdrift/longdrift_2021-09-26T03:26:17+08:00.PNG" width = "600" height="600"/>
+
 3. testing time: 20mins (with Calibrate every 5mins)
 
+<img src="tools/longdrift/longdrift_2021-09-26T04:12:18+08:00.PNG" width = "600" height="600"/>
+
+4. testing time: 21mins (with Calibrate every 5mins)
+
+<img src="tools/longdrift/longdrift_2021-09-26T04:42:57+08:00.PNG" width = "600" height="600"/>
+
+p.s.
+
+It's a cheap laptop, the result is not that good. We could find the crystal frequency wasn't stable enough,
+the time sync service really worked hard. For tsc, it's a hard job to catch up the clock too.
 
 ## Performance
 
