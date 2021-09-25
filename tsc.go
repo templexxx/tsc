@@ -12,29 +12,6 @@ var (
 	allowOutOfOrder int64 = 1
 )
 
-// FreqSource is the source of tsc frequency.
-// Empty means no available source or could not passing fast clock delta checking.
-var FreqSource = ""
-
-// FreqEnv is the TSC frequency calculated by tools/getfreq or other tool.
-// It'll help
-const FreqEnv = "TSC_FREQ_X"
-
-const (
-	// EnvSource means this lib gets tsc frequency from environment variable.
-	EnvSource = "env"
-	// CPUFeatureSource means this lib gets tsc frequency from https://github.com/templexxx/cpu
-	//
-	// The frequency provided by Intel manual is not that reliable,
-	// (Actually, there is 1/millions delta at least)
-	// it's easy to ensure that, because it's common that crystal won't work in the frequency we expected
-	// Yes, we can get an expensive crystal, but we can't replace the crystal in CPU by the better one.
-	// That's why we have to adjust the frequency by tools provided by this project/other ways.
-	CPUFeatureSource = "cpu_feat"
-	// FastDetectSource means this lib get tsc frequency from a fast detection.
-	FastDetectSource = "fast_detect"
-)
-
 // UnixNano returns t as a Unix time, the number of nanoseconds elapsed
 // since January 1, 1970 UTC.
 //

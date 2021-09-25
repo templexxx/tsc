@@ -6,9 +6,11 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"log"
 	"math"
 	"runtime"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"gonum.org/v1/plot"
@@ -22,16 +24,14 @@ import (
 )
 
 var (
-	jobTime           = flag.Int64("job_time", 600, "unit: seconds")
+	jobTime           = flag.Int64("job_time", 1200, "unit: seconds")
 	enableCalibrate   = flag.Bool("enable_calibrate", false, "enable calibrate will help to catch up system clock")
-	calibrateInterval = flag.Int64("calibrate_interval", 300, "unit: seconds")
+	calibrateInterval = flag.Int64("calibrate_interval", 600, "unit: seconds")
 	idle              = flag.Bool("idle", true, "if false it will run empty loops on each cores, try to simulate a busy cpu")
 	printDelta        = flag.Bool("print", false, "print every second delta")
 	threads           = flag.Int("threads", 1, "try to run comparing on multi cores")
-	tscFreq           = flag.Float64("freq", 0, "tsc frequency")
-	coeff             = flag.Float64("coeff", 0, "")
-	offset            = flag.Int64("offset", 0, "")
-	cmpsys            = flag.Bool("cmp_sys", false, "compare two system clock but not system clock and tsc clock")
+	coeff             = flag.Float64("coeff", 0, "coefficient for tsc: tsc_register * coeff + offset = timestamp")
+	cmpsys            = flag.Bool("cmp_sys", false, "compare two system clock")
 	inOrder           = flag.Bool("in_order", false, "get tsc register in-order (with lfence)")
 )
 
@@ -42,8 +42,7 @@ type Config struct {
 	Idle              bool
 	Print             bool
 	Threads           int
-	TSCFreq           float64
-	Source            string
+	Coeff             float64
 }
 
 var cmpClock func() int64
@@ -86,7 +85,7 @@ func main() {
 
 	r := &runner{cfg: &cfg, deltas: deltas}
 
-	r.run(cmpClock)
+	r.run()
 }
 
 type runner struct {
@@ -96,31 +95,16 @@ type runner struct {
 	wg *sync.WaitGroup
 }
 
-func (r *runner) run(cmpClock func() int64) {
+func (r *runner) run() {
 
 	if !tsc.Supported() {
-		fmt.Println("tsc unsupported")
-		return
+		log.Fatal("tsc unsupported")
 	}
 
 	tsc.ForceTSC() // Enable TSC force.
 
-	if *coeff != 0 && *offset != 0 {
-		freq := 1e9 / *coeff
-		r.cfg.TSCFreq = freq
-		tsc.CalibrateWithCoeffOffset(*coeff, *offset)
-		r.cfg.Source = "option"
-	} else {
-		freq := *tscFreq
-		if freq != 0 {
-			r.cfg.TSCFreq = freq
-			tsc.SetFreq(freq)
-			tsc.Calibrate() // Reset offset.
-			r.cfg.Source = "option"
-		} else {
-			r.cfg.TSCFreq = tsc.Frequency
-			r.cfg.Source = tsc.FreqSource
-		}
+	if *coeff != 0 {
+		tsc.CalibrateWithCoeff(*coeff)
 	}
 
 	options := ""
@@ -131,7 +115,7 @@ func (r *runner) run(cmpClock func() int64) {
 	fmt.Printf("testing with options:%s\n", options)
 	cpuFlag := fmt.Sprintf("%s_%d", cpu.X86.Signature, cpu.X86.SteppingID)
 
-	fmt.Printf("cpu: %s, tsc_freq: %.9f, offset: %d, source: %s\n", cpuFlag, tsc.Frequency, tsc.Offset, r.cfg.Source)
+	fmt.Printf("cpu: %s, bigin with tsc_freq: %.16f, offset: %d\n", cpuFlag, 1e9/math.Float64frombits(tsc.Coeff), tsc.Offset)
 
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -147,7 +131,10 @@ func (r *runner) run(cmpClock func() int64) {
 			for {
 				select {
 				case <-ticker.C:
+					originFreq := 1e9 / math.Float64frombits(atomic.LoadUint64(&tsc.Coeff))
 					tsc.Calibrate()
+					newFreq := 1e9 / math.Float64frombits(atomic.LoadUint64(&tsc.Coeff))
+					fmt.Printf("origin tsc_freq: %.16f, new_tsc_freq: %.16f\n", originFreq, newFreq)
 				case <-ctx2.Done():
 					break
 				}
@@ -222,9 +209,10 @@ func (r *runner) doJobLoop(thread int) {
 
 		time.Sleep(time.Second)
 		clock2 := cmpClock()
-		clock1 := time.Now().UnixNano()
+		sysClock := time.Now().UnixNano()
 		clock22 := cmpClock()
-		delta := (clock2+clock22)/2 - clock1
+		delta := (clock2+clock22)/2 - sysClock
+		delta2 := clock22 - sysClock
 		r.deltas[thread][i] = delta
 
 		deltaABS := math.Abs(float64(delta))
@@ -238,8 +226,8 @@ func (r *runner) doJobLoop(thread int) {
 		}
 
 		if r.cfg.Print {
-			fmt.Printf("thread: %d, sys_clock: %d, %s: %d, delta: %.2fus\n",
-				thread, clock1, cmpTo, clock2, float64(delta)/float64(time.Microsecond))
+			fmt.Printf("thread: %d, sys_clock: %d, %s: %d, delta: %.2fus, next_delta: %.2fus\n",
+				thread, sysClock, cmpTo, clock2, float64(delta)/float64(time.Microsecond), float64(delta2)/float64(time.Microsecond))
 		}
 	}
 	fmt.Printf("thread: %d, first_delta: %.2fus, last_delta: %.2fus, min_delta: %.2fus, max_delta: %.2fus, every_sec_add: %.2fus\n",
