@@ -28,7 +28,7 @@ var (
 	enableCalibrate   = flag.Bool("enable_calibrate", false, "enable calibrate will help to catch up system clock")
 	calibrateInterval = flag.Int64("calibrate_interval", 600, "unit: seconds")
 	idle              = flag.Bool("idle", true, "if false it will run empty loops on each cores, try to simulate a busy cpu")
-	printDelta        = flag.Bool("print", false, "print every second delta")
+	printDetails      = flag.Bool("print", false, "print every second delta & calibrate result")
 	threads           = flag.Int("threads", 1, "try to run comparing on multi cores")
 	coeff             = flag.Float64("coeff", 0, "coefficient for tsc: tsc_register * coeff + offset = timestamp")
 	cmpsys            = flag.Bool("cmp_sys", false, "compare two system clock")
@@ -74,7 +74,7 @@ func main() {
 		EnableCalibrate:   *enableCalibrate,
 		CalibrateInterval: time.Duration(*calibrateInterval) * time.Second,
 		Idle:              *idle,
-		Print:             *printDelta,
+		Print:             *printDetails,
 		Threads:           *threads,
 	}
 
@@ -102,6 +102,9 @@ func (r *runner) run() {
 	}
 
 	tsc.ForceTSC() // Enable TSC force.
+
+	start := time.Now()
+	fmt.Printf("job start at: %s\n", start.Format(time.RFC3339Nano))
 
 	if *coeff != 0 {
 		tsc.CalibrateWithCoeff(*coeff)
@@ -134,7 +137,9 @@ func (r *runner) run() {
 					originFreq := 1e9 / math.Float64frombits(atomic.LoadUint64(&tsc.Coeff))
 					tsc.Calibrate()
 					newFreq := 1e9 / math.Float64frombits(atomic.LoadUint64(&tsc.Coeff))
-					fmt.Printf("origin tsc_freq: %.16f, new_tsc_freq: %.16f\n", originFreq, newFreq)
+					if *printDetails {
+						fmt.Printf("origin tsc_freq: %.16f, new_tsc_freq: %.16f\n", originFreq, newFreq)
+					}
 				case <-ctx2.Done():
 					break
 				}
@@ -155,6 +160,9 @@ func (r *runner) run() {
 	}
 	wg.Wait()
 	cancel()
+
+	cost := time.Now().Sub(start)
+	fmt.Printf("job taken: %s\n", cost.String())
 
 	r.printDeltas()
 }
