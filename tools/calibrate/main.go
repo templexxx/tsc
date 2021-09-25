@@ -128,13 +128,16 @@ func main() {
 	fmt.Printf("result of simple linear regression, coeff: %.16f, freq: %.16f, offset: %d\n", c, 1e9/c, offset)
 
 	avgPredictDelta := float64(0)
-	for i := range tscs {
-		predict := int64(float64(tscs[i])*c) + offset
-		act := syss[i]
-		avgPredictDelta += math.Abs(float64(predict) - float64(act))
+	totalPredictDelta := float64(0)
+	for i := range tscDeltas {
+		predict := int64(float64(tscDeltas[i]) * c)
+		act := sysDeltas[i]
+		avgPredictDelta += math.Abs(float64(predict) - act)
+		totalPredictDelta += float64(predict) - act
 	}
 	avgPredictDelta = avgPredictDelta / float64(len(tscDeltas))
-	fmt.Printf("avg abs delta of prediction made by simple linear regression and real clock: %.2fus\n", avgPredictDelta/1000)
+	fmt.Printf("prediction made by simple linear regression and real clock, avg abs delta %.2fus, total non-abs dealta: %.2fus\n",
+		avgPredictDelta/1000, totalPredictDelta/1000)
 }
 
 // getClosestTSCSys tries to get the closest tsc register value nearby the system clock in a loop.
