@@ -247,6 +247,8 @@ func (r *runner) doJobLoop(thread int) {
 		(float64(r.deltas[thread][r.cfg.JobTime-1])-float64(r.deltas[thread][0]))/float64(r.cfg.JobTime)/1000)
 }
 
+var outTmFmt = "2006-01-02T150405"
+
 func (r *runner) printDeltas() {
 
 	p := plot.New()
@@ -269,7 +271,7 @@ func (r *runner) printDeltas() {
 		}
 	}
 
-	if err := p.Save(10*vg.Inch, 10*vg.Inch, fmt.Sprintf("longdrift_%s.PNG", time.Now().Format(time.RFC3339))); err != nil {
+	if err := p.Save(10*vg.Inch, 10*vg.Inch, fmt.Sprintf("longdrift_%s.PNG", time.Now().Format(outTmFmt))); err != nil {
 		panic(err)
 	}
 }

@@ -62,15 +62,15 @@ measurement: [tools/longdrift](tools/longdrift/README.md) with default flags.
 
 1. testing time: 100s
 
-<img src="tools/longdrift/longdrift_2021-09-26T01:17:55+08:00.PNG" width = "600" height="600"/>
+<img src="tools/longdrift/longdrift_2021-09-26T011755.PNG" width = "600" height="600"/>
 
 2. testing time: 20mins
 
-<img src="tools/longdrift/longdrift_2021-09-26T03:18:16+08:00.PNG" width = "600" height="600"/>
+<img src="tools/longdrift/longdrift_2021-09-26T031816.PNG" width = "600" height="600"/>
 
 3. testing time: 20mins (with Calibrate every 5mins)
 
-<img src="tools/longdrift/longdrift_2021-09-26T03:49:31+08:00.PNG" width = "600" height="600"/>
+<img src="tools/longdrift/longdrift_2021-09-26T034931.PNG" width = "600" height="600"/>
 
 p.s.
 
@@ -85,19 +85,19 @@ measurement: [tools/longdrift](tools/longdrift/README.md) with default flags.
 
 1. testing time: 100s
 
-<img src="tools/longdrift/longdrift_2021-09-26T03:04:22+08:00.PNG" width = "600" height="600"/>
+<img src="tools/longdrift/longdrift_2021-09-26T030422.PNG" width = "600" height="600"/>
 
 2. testing time: 20mins
 
-<img src="tools/longdrift/longdrift_2021-09-26T03:26:17+08:00.PNG" width = "600" height="600"/>
+<img src="tools/longdrift/longdrift_2021-09-26T032617.PNG" width = "600" height="600"/>
 
 3. testing time: 20mins (with Calibrate every 5mins)
 
-<img src="tools/longdrift/longdrift_2021-09-26T04:12:18+08:00.PNG" width = "600" height="600"/>
+<img src="tools/longdrift/longdrift_2021-09-26T041218.PNG" width = "600" height="600"/>
 
 4. testing time: 21mins (with Calibrate every 5mins)
 
-<img src="tools/longdrift/longdrift_2021-09-26T04:42:57+08:00.PNG" width = "600" height="600"/>
+<img src="tools/longdrift/longdrift_2021-09-26T044257.PNG" width = "600" height="600"/>
 
 p.s.
 
