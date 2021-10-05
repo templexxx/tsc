@@ -136,11 +136,11 @@ import (
 
 func main() {
 	ts := tsc.UnixNano()   // Getting unix nano timestamp.
-	fmt.Println(ts, tsc.Enabled())  // Print result & tsc enabled or not.
+	fmt.Println(ts, tsc.Supported())  // Print result & tsc supported or not.
 }
 ```
 
-If `tsc.Enabled() == true`, it'll use tsc register. If not, it'll wrap `time.Now().UnixNano()`.
+If `tsc.Supported() == true`, it'll use tsc register. If not, it'll wrap `time.Now().UnixNano()`.
 
 ### Tips
 
