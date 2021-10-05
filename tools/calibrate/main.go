@@ -41,8 +41,6 @@ func main() {
 		log.Fatal("tsc unsupported")
 	}
 
-	tsc.ForceTSC() // Enable TSC force.
-
 	cnt := *sample
 
 	if cnt < minSamples {

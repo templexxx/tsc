@@ -2,44 +2,10 @@ package tsc
 
 import (
 	"context"
-	"fmt"
 	"math"
 	"testing"
 	"time"
 )
-
-func init() {
-
-	ForceTSC()
-}
-
-// Out-of-Order test, GetInOrder should be in order as we assume.
-func TestGetInOrder(t *testing.T) {
-
-	if !Enabled() {
-		t.Skip("tsc is disabled")
-	}
-
-	n := 4096
-	ret0 := make([]int64, n)
-	ret1 := make([]int64, n)
-
-	for i := range ret0 {
-		ret0[i] = GetInOrder()
-		ret1[i] = GetInOrder()
-	}
-
-	cnt := 0
-	for i := 0; i < n; i++ {
-		d := ret1[i] - ret0[i]
-		if d < 0 {
-			cnt++
-		}
-	}
-	if cnt > 0 {
-		t.Fatal(fmt.Sprintf("GetInOrder is not in order: %d aren't in order", cnt))
-	}
-}
 
 func TestIsEven(t *testing.T) {
 	for i := 0; i < 13; i += 2 {
@@ -55,32 +21,10 @@ func TestIsEven(t *testing.T) {
 	}
 }
 
-func BenchmarkGetInOrder(b *testing.B) {
-
-	if !Enabled() {
-		b.Skip("tsc is disabled")
-	}
-
-	for i := 0; i < b.N; i++ {
-		_ = GetInOrder()
-	}
-}
-
-func BenchmarkRDTSC(b *testing.B) {
-
-	if !Enabled() {
-		b.Skip("tsc is disabled")
-	}
-
-	for i := 0; i < b.N; i++ {
-		_ = RDTSC()
-	}
-}
-
 func BenchmarkUnixNano(b *testing.B) {
 
-	if !Enabled() {
-		b.Skip("tsc is disabled")
+	if !Supported() {
+		b.Skip("tsc is unsupported")
 	}
 
 	for i := 0; i < b.N; i++ {
@@ -97,8 +41,8 @@ func BenchmarkSysTime(b *testing.B) {
 
 func TestFastCheckDrift(t *testing.T) {
 
-	if !Enabled() {
-		t.Skip("tsc is disabled")
+	if !Supported() {
+		t.Skip("tsc is unsupported")
 	}
 
 	time.Sleep(time.Second)
@@ -114,8 +58,8 @@ func TestFastCheckDrift(t *testing.T) {
 // TestCalibrate with race detection.
 func TestCalibrate(t *testing.T) {
 
-	if !Enabled() {
-		t.Skip("tsc is disabled")
+	if !Supported() {
+		t.Skip("tsc is unsupported")
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -131,7 +75,7 @@ func TestCalibrate(t *testing.T) {
 		for {
 			select {
 			case <-ticker.C:
-				calibrate(true, true)
+				Calibrate()
 			case <-ctx2.Done():
 				break
 			}

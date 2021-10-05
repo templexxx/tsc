@@ -20,13 +20,8 @@ TEXT ·RDTSC(SB), NOSPLIT, $0
     MOVQ AX, ret+0(FP)
     RET
 
-#define tsc AX
-#define ftsc X0 // float64(tsc)
-#define ns X0 // nanoseconds
-#define un AX // unixNano
-
-// func unixNanoTSC() int64
-TEXT ·unixNanoTSC(SB), NOSPLIT, $0
+// func unixNanoTSC16B() int64
+TEXT ·unixNanoTSC16B(SB), NOSPLIT, $0
 
 	// Both of RSTSC & RDTSCP are not serializing instructions.
 	// It does not necessarily wait until all previous instructions
@@ -35,27 +30,54 @@ TEXT ·unixNanoTSC(SB), NOSPLIT, $0
 	// It's ok to use RSTSC for just getting a timestamp.
 	RDTSC        // high 32bit in DX, low 32bit in AX (tsc).
 	SALQ $32, DX
-	ORQ  DX, tsc // -> [DX, tsc] (high, low)
+	ORQ  DX, AX // -> [DX, tsc] (high, low)
 
-	VCVTSI2SDQ  tsc, ftsc, ftsc      // ftsc = float64(tsc)
-	VMULSD      ·Coeff(SB), ftsc, ns // ns = coeff * fstc
-	VCVTTSD2SIQ ns, un               // un = int64(ns)
-	ADDQ        ·Offset(SB), un      // un += offset
-	MOVQ        un, ret+0(FP)
+	VCVTSI2SDQ  AX, X0, X0      // ftsc = float64(tsc)
+	MOVQ     ·OffsetCoeffAddr(SB), BX
+	VMOVDQA  (BX), X3
+	VMULSD    X3, X0, X0  // ns = coeff * ftsc
+	VCVTTSD2SIQ X0, AX               // un = int64(ns)
+	VMOVHLPS  X3, X3, X3
+    VMOVQ     X3, CX
+	ADDQ        CX, AX      // un += offset
+	MOVQ        AX, ret+0(FP)
 	RET
 
-// func unixNanoTSCfence() int64
-TEXT ·unixNanoTSCfence(SB), NOSPLIT, $0
+// func unixNanoTSC16Bfence() int64
+TEXT ·unixNanoTSC16Bfence(SB), NOSPLIT, $0
 
 	LFENCE
 	RDTSC        // high 32bit in DX, low 32bit in AX (tsc).
 	LFENCE
 	SALQ $32, DX
-	ORQ  DX, tsc // -> [DX, tsc] (high, low)
+	ORQ  DX, AX // -> [DX, tsc] (high, low)
 
-	VCVTSI2SDQ  tsc, ftsc, ftsc      // ftsc = float64(tsc)
-	VMULSD      ·Coeff(SB), ftsc, ns // ns = coeff * fstc
-	VCVTTSD2SIQ ns, un               // un = int64(ns)
-	ADDQ        ·Offset(SB), un      // un += offset
-	MOVQ        un, ret+0(FP)
+	VCVTSI2SDQ  AX, X0, X0      // ftsc = float64(tsc)
+	MOVQ     ·OffsetCoeffAddr(SB), BX
+	VMOVDQA  (BX), X3
+	VMULSD    X3, X0, X0  // ns = coeff * ftsc
+	VCVTTSD2SIQ X0, AX               // un = int64(ns)
+	VMOVHLPS  X3, X3, X3
+    VMOVQ     X3, CX
+	ADDQ        CX, AX      // un += offset
+	MOVQ        AX, ret+0(FP)
+	RET
+
+// func loadOffsetCoeff(src *byte) (offset int64, coeff float64)
+TEXT ·LoadOffsetCoeff(SB), NOSPLIT, $0
+    MOVQ src+0(FP), AX
+    VMOVDQA (AX), X0
+    VMOVQ   X0, BX
+    VMOVHLPS X0, X0, X0
+    VMOVQ   X0, CX
+    MOVQ  CX, offset+8(FP)
+    MOVQ   BX, coeff+16(FP)
+	RET
+
+// func storeOffsetCoeff(dst *byte, offset int64, coeff float64)
+TEXT ·storeOffsetCoeff(SB),NOSPLIT,$0
+	MOVQ dst+0(FP), AX
+	VMOVQ coeff+16(FP), X5
+	VMOVHPS offset+8(FP), X5, X4
+	VMOVDQA X4, (AX)
 	RET

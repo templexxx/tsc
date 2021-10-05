@@ -41,7 +41,7 @@ makes things even "worse".
 1. I can't, kernel can do many things I can't do in userspace.
 2. There are multi ways to calibrate kernel clock, I can't enjoy them directly, what I can do is just catch up the result of kernel clock.
 
-### Why should I adjust clock by kernel clock?
+### Why should I calibrate clock by comparing kernel clock?
 
 If I could do better in tsc frequency detection & precision, shouldn't be a good idea that ignore kernel clock?
 
@@ -49,6 +49,12 @@ First, as I mentioned above I need to borrow the abilities of calibration which 
 The crystal of TSC is not as good as we expect, it's just a cheap crystal, we need adjust the frequency result time by time.
 
 Second, it'll make people confused if there are two different clocks and their results are quietly different. 
+
+#### Details of Calibration
+
+1. Using simple linear regression to generate the newest frequency(coefficient) & offset to system clock
+2. Using AVX instruction to store coefficient & offset to a specific address
+3. Loading coefficient & offset pair when making timestamp
 
 ### Drift testings examples
 
@@ -65,7 +71,7 @@ measurement: [tools/longdrift](tools/longdrift/README.md) with default flags.
 <img src="tools/longdrift/longdrift_2021-09-26T011755.PNG" width = "600" height="600"/>
 
 2. testing time: 20mins
-
+ 
 <img src="tools/longdrift/longdrift_2021-09-26T031816.PNG" width = "600" height="600"/>
 
 3. testing time: 20mins (with Calibrate every 5mins)

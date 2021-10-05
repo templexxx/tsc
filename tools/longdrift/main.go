@@ -10,7 +10,6 @@ import (
 	"math"
 	"runtime"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"gonum.org/v1/plot"
@@ -101,8 +100,6 @@ func (r *runner) run() {
 		log.Fatal("tsc unsupported")
 	}
 
-	tsc.ForceTSC() // Enable TSC force.
-
 	start := time.Now()
 	fmt.Printf("job start at: %s\n", start.Format(time.RFC3339Nano))
 
@@ -118,7 +115,9 @@ func (r *runner) run() {
 	fmt.Printf("testing with options:%s\n", options)
 	cpuFlag := fmt.Sprintf("%s_%d", cpu.X86.Signature, cpu.X86.SteppingID)
 
-	fmt.Printf("cpu: %s, bigin with tsc_freq: %.16f, offset: %d\n", cpuFlag, 1e9/math.Float64frombits(tsc.Coeff), tsc.Offset)
+	ooffset, ocoeff := tsc.LoadOffsetCoeff(tsc.OffsetCoeffAddr)
+
+	fmt.Printf("cpu: %s, bigin with tsc_freq: %.16f, offset: %d\n", cpuFlag, 1e9/ocoeff, ooffset)
 
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -134,11 +133,13 @@ func (r *runner) run() {
 			for {
 				select {
 				case <-ticker.C:
-					originFreq := 1e9 / math.Float64frombits(atomic.LoadUint64(&tsc.Coeff))
+					_, ocoeff := tsc.LoadOffsetCoeff(tsc.OffsetCoeffAddr)
+
+					originFreq := 1e9 / ocoeff
 					tsc.Calibrate()
-					newFreq := 1e9 / math.Float64frombits(atomic.LoadUint64(&tsc.Coeff))
+					_, ocoeff = tsc.LoadOffsetCoeff(tsc.OffsetCoeffAddr)
 					if *printDetails {
-						fmt.Printf("origin tsc_freq: %.16f, new_tsc_freq: %.16f\n", originFreq, newFreq)
+						fmt.Printf("origin tsc_freq: %.16f, new_tsc_freq: %.16f\n", originFreq, 1e9/ocoeff)
 					}
 				case <-ctx2.Done():
 					break
