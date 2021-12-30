@@ -8,9 +8,9 @@ TEXT ·AvxLoad16B(SB), NOSPLIT, $0
     VMOVDQA X3, (BX)
 	RET
 
-// func AvxStore16B(src, val *byte)
+// func AvxStore16B(dst, val *byte)
 TEXT ·AvxStore16B(SB),NOSPLIT,$0
-	MOVQ src+0(FP), AX
+	MOVQ dst+0(FP), AX
 	MOVQ val+8(FP), BX
 	VMOVDQA (BX), X3
 	VMOVDQA X3, (AX)

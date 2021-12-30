@@ -9,7 +9,6 @@ import (
 	"encoding/binary"
 	"runtime"
 	"testing"
-	"unsafe"
 
 	"github.com/templexxx/tsc/internal/xbytes"
 )
@@ -31,10 +30,11 @@ func TestAtomicLoad16B(t *testing.T) {
 	}
 	x.before = magic128bits
 	x.after = magic128bits
-	x.i = xbytes.MakeAlignedBlock(16, 16)
+	x.i = xbytes.MakeAlignedBlock(16, 64)
+
+	k := xbytes.MakeAlignedBlock(16, 64)
 
 	for delta := uint64(1); delta+delta > delta; delta += delta {
-		k := xbytes.MakeAlignedBlock(16, 16)
 		AvxLoad16B(&x.i[0], &k[0])
 		if !bytes.Equal(k[:], x.i) {
 			t.Fatalf("delta=%d i=%d k=%d", delta, x.i, k)
@@ -43,10 +43,10 @@ func TestAtomicLoad16B(t *testing.T) {
 		xi0 := binary.LittleEndian.Uint64(x.i[:8])
 		xi0 += delta
 		xi1 := binary.LittleEndian.Uint64(x.i[8:])
-		xi1 -= delta
+		xi1 += delta
 
-		binary.LittleEndian.PutUint64(x.i[:8], delta+2)
-		binary.LittleEndian.PutUint64(x.i[8:], ^(delta + 2))
+		binary.LittleEndian.PutUint64(x.i[:8], xi0)
+		binary.LittleEndian.PutUint64(x.i[8:], xi1)
 	}
 	if !bytes.Equal(x.before, magic128bits) || !bytes.Equal(x.after, magic128bits) {
 		t.Fatal("wrong magic")
@@ -61,22 +61,22 @@ func TestAtomicStore16B(t *testing.T) {
 	}
 	x.before = magic128bits
 	x.after = magic128bits
-	x.i = xbytes.MakeAlignedBlock(16, 16)
+	x.i = xbytes.MakeAlignedBlock(16, 64)
 
-	v := xbytes.MakeAlignedBlock(16, 16)
+	k := xbytes.MakeAlignedBlock(16, 64)
 	for delta := uint64(1); delta+delta > delta; delta += delta {
-		AvxStore16B(&x.i[0], &v[0])
-		if !bytes.Equal(v[:], x.i) {
-			t.Fatalf("delta=%d i=%d", delta, x.i)
+		AvxStore16B(&x.i[0], &k[0])
+		if !bytes.Equal(k[:], x.i) {
+			t.Fatalf("delta=%d i=%d k=%d", delta, x.i, k)
 		}
 
-		xi0 := binary.LittleEndian.Uint64(v[:8])
+		xi0 := binary.LittleEndian.Uint64(k[:8])
 		xi0 += delta
-		xi1 := binary.LittleEndian.Uint64(v[8:])
-		xi1 -= delta
+		xi1 := binary.LittleEndian.Uint64(k[8:])
+		xi1 += delta
 
-		binary.LittleEndian.PutUint64(v[:8], delta+2)
-		binary.LittleEndian.PutUint64(v[8:], ^(delta + 2))
+		binary.LittleEndian.PutUint64(k[:8], xi0)
+		binary.LittleEndian.PutUint64(k[8:], xi1)
 	}
 	if !bytes.Equal(x.before, magic128bits) || !bytes.Equal(x.after, magic128bits) {
 		t.Fatal("wrong magic")
@@ -84,7 +84,7 @@ func TestAtomicStore16B(t *testing.T) {
 }
 
 func TestHammerStoreLoad(t *testing.T) {
-	var tests []func(*testing.T, unsafe.Pointer)
+	var tests []func(*testing.T, *byte, []byte)
 	tests = append(tests, hammerStoreLoadUint128)
 	n := int(1e6)
 	if testing.Short() {
@@ -94,11 +94,12 @@ func TestHammerStoreLoad(t *testing.T) {
 	defer runtime.GOMAXPROCS(runtime.GOMAXPROCS(procs))
 	for _, tt := range tests {
 		c := make(chan int)
-		val := xbytes.MakeAlignedBlock(16, 16)
+		val := xbytes.MakeAlignedBlock(16, 64)
 		for p := 0; p < procs; p++ {
+			tmp := xbytes.MakeAlignedBlock(16, 64)
 			go func() {
 				for i := 0; i < n; i++ {
-					tt(t, unsafe.Pointer(&val[0]))
+					tt(t, &val[0], tmp)
 				}
 				c <- 1
 			}()
@@ -120,19 +121,18 @@ func TestHammerStoreLoad(t *testing.T) {
 // The functions repeatedly generate a pseudo-random number such that
 // low bits are equal to high bits, swap, check that the old value
 // has low and high bits equal.
-func hammerStoreLoadUint128(t *testing.T, paddr unsafe.Pointer) {
-	addr := (*byte)(paddr)
-	v := xbytes.MakeAlignedBlock(16, 16)
-	AvxLoad16B(addr, &v[0])
-	v0 := binary.LittleEndian.Uint64(v[:8])
-	v1 := binary.LittleEndian.Uint64(v[8:])
+func hammerStoreLoadUint128(t *testing.T, addr *byte, tmp []byte) {
+
+	AvxLoad16B(addr, &tmp[0])
+	v0 := binary.LittleEndian.Uint64(tmp[:8])
+	v1 := binary.LittleEndian.Uint64(tmp[8:])
 
 	if v0 != v1 {
-		t.Fatalf("AVXUint128: %#x != %#x", v0, v1)
+		t.Fatalf("Uint128: %#x != %#x", v0, v1)
 	}
-	newV := xbytes.MakeAlignedBlock(16, 16)
-	binary.LittleEndian.PutUint64(newV[:8], v0+1)
-	binary.LittleEndian.PutUint64(newV[8:], v1+1)
 
-	AvxStore16B(addr, &newV[0])
+	binary.LittleEndian.PutUint64(tmp[:8], v0+1)
+	binary.LittleEndian.PutUint64(tmp[8:], v1+1)
+
+	AvxStore16B(addr, &tmp[0])
 }

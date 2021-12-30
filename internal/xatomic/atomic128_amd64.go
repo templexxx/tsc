@@ -10,4 +10,4 @@ func AvxLoad16B(src, dst *byte)
 // src & val must be cache line aligned.
 //
 //go:noescape
-func AvxStore16B(src, val *byte)
+func AvxStore16B(dst, val *byte)
