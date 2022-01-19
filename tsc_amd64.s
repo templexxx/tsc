@@ -43,6 +43,27 @@ TEXT ·unixNanoTSC16B(SB), NOSPLIT, $0
 	MOVQ        AX, ret+0(FP)
 	RET
 
+// func unixNanoTSCFMA() int64
+TEXT ·unixNanoTSCFMA(SB), NOSPLIT, $0
+
+	// Both of RSTSC & RDTSCP are not serializing instructions.
+	// It does not necessarily wait until all previous instructions
+	// have been executed before reading the counter.
+	//
+	// It's ok to use RSTSC for just getting a timestamp.
+	RDTSC        // high 32bit in DX, low 32bit in AX (tsc).
+	SALQ $32, DX
+	ORQ  DX, AX  // -> [DX, tsc] (high, low)
+
+	VCVTSI2SDQ  AX, X0, X0               // ftsc = float64(tsc)
+	MOVQ        ·OffsetCoeffFAddr(SB), BX
+	VMOVDQA     (BX), X3    // get coeff
+	VMOVHLPS    X3, X3, X4 // get offset
+	VFMADD132PD X0, X4, X3  // X0 * X3 + X4 -> X3: ftsc * coeff + offset
+	VCVTTSD2SIQ X3, AX
+	MOVQ        AX, ret+0(FP)
+	RET
+
 // func unixNanoTSC16Bfence() int64
 TEXT ·unixNanoTSC16Bfence(SB), NOSPLIT, $0
 
@@ -54,7 +75,7 @@ TEXT ·unixNanoTSC16Bfence(SB), NOSPLIT, $0
 
 	VCVTSI2SDQ  AX, X0, X0               // ftsc = float64(tsc)
 	MOVQ        ·OffsetCoeffAddr(SB), BX
-	VMOVDQA     (BX), X3
+	VMOVDQA     (BX), X3    // get coeff
 	VMULSD      X3, X0, X0               // ns = coeff * ftsc
 	VCVTTSD2SIQ X0, AX                   // un = int64(ns)
 	VMOVHLPS    X3, X3, X3
@@ -76,6 +97,14 @@ TEXT ·LoadOffsetCoeff(SB), NOSPLIT, $0
 
 // func storeOffsetCoeff(dst *byte, offset int64, coeff float64)
 TEXT ·storeOffsetCoeff(SB), NOSPLIT, $0
+	MOVQ    dst+0(FP), AX
+	VMOVQ   coeff+16(FP), X5
+	VMOVHPS offset+8(FP), X5, X4
+	VMOVDQA X4, (AX)
+	RET
+
+// func storeOffsetCoeff(dst *byte, offset, coeff float64)
+TEXT ·storeOffsetFCoeff(SB), NOSPLIT, $0
 	MOVQ    dst+0(FP), AX
 	VMOVQ   coeff+16(FP), X5
 	VMOVHPS offset+8(FP), X5, X4

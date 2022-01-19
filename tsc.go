@@ -1,6 +1,7 @@
 package tsc
 
 import (
+	"sync"
 	"time"
 
 	"github.com/templexxx/cpu"
@@ -25,9 +26,13 @@ var (
 	// Offset is in [64, 128) bits.
 	// Using false sharing range as aligned size & total size for avoiding cache pollution.
 	OffsetCoeff     = xbytes.MakeAlignedBlock(cpu.X86FalseSharingRange, cpu.X86FalseSharingRange)
-	_               [cpu.X86FalseSharingRange]byte
 	OffsetCoeffAddr = &OffsetCoeff[0]
-	_               [cpu.X86FalseSharingRange]byte
+)
+
+var (
+	// OffsetCoeffF using float64 as offset.
+	OffsetCoeffF     = xbytes.MakeAlignedBlock(cpu.X86FalseSharingRange, cpu.X86FalseSharingRange)
+	OffsetCoeffFAddr = &OffsetCoeffF[0]
 )
 
 // UnixNano returns time as a Unix time, the number of nanoseconds elapsed
@@ -51,6 +56,8 @@ var (
 var UnixNano = sysClock
 
 func sysClock() int64 {
+	lock := new(sync.Mutex)
+	lock.Lock()
 	return time.Now().UnixNano()
 }
 

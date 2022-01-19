@@ -81,3 +81,25 @@ func BenchmarkRDTSC(b *testing.B) {
 		_ = RDTSC()
 	}
 }
+
+func BenchmarkXXXFMA(b *testing.B) {
+
+	if !Supported() {
+		b.Skip("tsc is unsupported")
+	}
+
+	for i := 0; i < b.N; i++ {
+		_ = unixNanoTSCFMA()
+	}
+}
+
+func BenchmarkXXXOrigin(b *testing.B) {
+
+	if !Supported() {
+		b.Skip("tsc is unsupported")
+	}
+
+	for i := 0; i < b.N; i++ {
+		_ = unixNanoTSC16B()
+	}
+}

@@ -29,6 +29,10 @@ func reset() bool {
 	Calibrate()
 
 	if IsOutOfOrder() {
+		if cpu.X86.HasFMA {
+			UnixNano = unixNanoTSCFMA
+			return true
+		}
 		UnixNano = unixNanoTSC16B
 		return true
 	}
@@ -89,6 +93,7 @@ func Calibrate() {
 
 	coeff, offset := simpleLinearRegression(tscs, syss)
 	storeOffsetCoeff(OffsetCoeffAddr, offset, coeff)
+	storeOffsetFCoeff(OffsetCoeffFAddr, float64(offset), coeff)
 }
 
 func simpleLinearRegression(tscs, syss []float64) (coeff float64, offset int64) {
@@ -124,6 +129,7 @@ func CalibrateWithCoeff(c float64) {
 	_, tsc, sys := getClosestTSCSys(getClosestTSCSysRetries)
 	off := sys - int64(float64(tsc)*c)
 	storeOffsetCoeff(OffsetCoeffAddr, off, c)
+	storeOffsetFCoeff(OffsetCoeffFAddr, float64(off), c)
 }
 
 // getClosestTSCSys tries to get the closest tsc register value nearby the system clock in a loop.
@@ -192,10 +198,16 @@ func RDTSC() int64
 func unixNanoTSC16B() int64
 
 //go:noescape
+func unixNanoTSCFMA() int64
+
+//go:noescape
 func unixNanoTSC16Bfence() int64
 
 //go:noescape
 func storeOffsetCoeff(dst *byte, offset int64, coeff float64)
+
+//go:noescape
+func storeOffsetFCoeff(dst *byte, offset, coeff float64)
 
 // Same logic as unixNanoTSC16B for checking getting offset & coeff correctly.
 //go:noescape
