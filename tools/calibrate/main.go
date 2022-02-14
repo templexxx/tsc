@@ -25,7 +25,7 @@ const (
 	// Actually it depends on tsc crystal frequency & speed of CPU. I don't think userspace fast clock is meaningful on a slow machine.
 	// For a machine with good enough hardware, the min tsc delta mustn't be big.
 	minTSCDeltaMac     int64 = 800
-	minTSCDeltaLinux   int64 = 640 // System clock's speed is faster on Linux.
+	minTSCDeltaLinux   int64 = 800 // System clock's speed is faster on Linux.
 	triesToFindClosest       = 256 // If too small, hard to ensure getting minTSCDelta.
 	minSamples               = 32
 )
