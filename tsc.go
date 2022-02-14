@@ -1,6 +1,9 @@
 package tsc
 
 import (
+	"io/ioutil"
+	"os"
+	"runtime"
 	"sync"
 	"time"
 
@@ -103,4 +106,28 @@ func IsOutOfOrder() bool {
 
 func isEven(n int) bool {
 	return n&1 == 0
+}
+
+var (
+	linuxClockSourcePath = "/sys/devices/system/clocksource/clocksource0/current_clocksource"
+)
+
+// GetCurrentClockSource gets clock source on Linux.
+func GetCurrentClockSource() string {
+
+	if runtime.GOOS != "linux" {
+		return ""
+	}
+
+	f, err := os.Open(linuxClockSourcePath)
+	if err != nil {
+		return ""
+	}
+	defer f.Close()
+
+	d, err := ioutil.ReadAll(f)
+	if err != nil {
+		return ""
+	}
+	return string(d)
 }

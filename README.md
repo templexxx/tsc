@@ -146,9 +146,18 @@ If `tsc.Supported() == true`, it'll use tsc register. If not, it'll wrap `time.N
 
 1. Using tools provided by this repo to learn how it works: [calibrate](tools/calibrate/README.md), [longdrift](tools/longdrift/README.md).
 And these tools could help you to detect how stable the tsc register & this lib is in your environment.
-2. If your application doesn't care the accuracy of clock too much, you could invoke `tsc.ForceTSC()` for allowing unstable frequency.
-3. Invoke `tsc.Calibrate()`  periodically if you need to catch up system clock. 5 mins is a good start because the auto NTP adjust is always every 11 mins.
-4. Set in-order execution by `tsc.ForbidOutOfOrder()` when you need to measure time cost for short statements.
+2. Invoke `tsc.Calibrate()`  periodically if you need to catch up system clock. 5 mins is a good start because the auto NTP adjust is always every 11 mins.
+3. Set in-order execution by `tsc.ForbidOutOfOrder()` when you need to measure time cost for short statements.
+
+#### Virtual Machine
+
+On vm, the CPU feature detection may cannot work as expect because the CPUID limitation, the Invariant TSC feature cannot be detected if so.
+
+But if the tsc is the system clock source which means this cloud provider could handle tsc clock source well enough, in that situation this lib will enable TSC as clock source too. 
+
+Some cloud vm could support tsc as clock source, e.g., [AWS EC2](https://aws.amazon.com/premiumsupport/knowledge-center/manage-ec2-linux-clock-source/?nc1=h_ls)
+
+Please contact your vm supports team to make sure the tsc clock source is reliable before using it.
 
 ## Limitation
 
@@ -161,3 +170,4 @@ And these tools could help you to detect how stable the tsc register & this lib 
 1. [Question of linux gettimeofday on StackOverflow](https://stackoverflow.com/questions/13230719/how-is-the-microsecond-time-of-linux-gettimeofday-obtained-and-what-is-its-acc)
 2. [Question of TSC frequency variations with temperature on Intel community](https://community.intel.com/t5/Software-Tuning-Performance/TSC-frequency-variations-with-temperature/td-p/1098982)
 3. [Question of TSC frequency variations with temperature on Intel community(2)](https://community.intel.com/t5/Software-Tuning-Performance/TSC-frequency-variations-with-temperature/m-p/1126518)
+4. [Pitfalls of TSC Usage](http://oliveryang.net/2015/09/pitfalls-of-TSC-usage)

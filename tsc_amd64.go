@@ -48,8 +48,12 @@ func isHardwareSupported() bool {
 
 	// Invariant TSC could make sure TSC got synced among multi CPUs.
 	// They will be reset at same time, and run in same frequency.
+	// But in some VM, the max Extended Function in CPUID is < 0x80000007,
+	// we should enable TSC if the system clock source is TSC.
 	if !cpu.X86.HasInvariantTSC {
-		return false
+		if GetCurrentClockSource() != "tsc" {
+			return false // Cannot detect invariant tsc by CPUID or linux clock source, return false.
+		}
 	}
 
 	// Some instructions need AVX, see tsc_amd64.s for details.
