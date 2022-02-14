@@ -4,6 +4,7 @@ import (
 	"io/ioutil"
 	"os"
 	"runtime"
+	"strings"
 	"sync"
 	"time"
 
@@ -129,5 +130,5 @@ func GetCurrentClockSource() string {
 	if err != nil {
 		return ""
 	}
-	return string(d)
+	return strings.TrimRight(string(d), "\n")
 }
