@@ -119,8 +119,10 @@ func main() {
 
 	fmt.Printf("cpu: %s, job cost: %.2fs\n", cpuFlag, cost.Seconds())
 	fmt.Println("-------")
-	ocoeff := math.Float64frombits(tsc.Coeff)
-	fmt.Printf("origin coeffcient: %.16f, freq: %.16f, offset: %d(%s)\n", ocoeff, 1e9/ocoeff, tsc.Offset, nanosFmt(tsc.Offset))
+
+	ooffset, ocoeff := tsc.LoadOffsetCoeff(tsc.OffsetCoeffAddr)
+
+	fmt.Printf("origin coeffcient: %.16f, freq: %.16f, offset: %d(%s)\n", ocoeff, 1e9/ocoeff, ooffset, nanosFmt(ooffset))
 	fmt.Printf("avg coeffcient: %.16f, freq: %.16f\n", avgCoeff, avgFreq)
 	fmt.Println("-------")
 	var coeff float64
