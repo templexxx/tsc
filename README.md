@@ -3,6 +3,8 @@ TSC
 
 Get unix time (nanoseconds) in blazing low latency with high precision. About 6x~10x faster than time.Now().UnixNano(). 
 
+Could accelerate Cloud-Native applications too! See [this](#virtual-machine) for details.
+
 ## Could be used in ...
 
 1. High performance log: as timestamp field
@@ -155,7 +157,7 @@ On vm, the CPU feature detection may cannot work as expect because the CPUID lim
 
 But if the tsc is the system clock source which means this cloud provider could handle tsc clock source well enough, in that situation this lib will enable TSC as clock source too. 
 
-Some cloud vm could support tsc as clock source, e.g., [AWS EC2](https://aws.amazon.com/premiumsupport/knowledge-center/manage-ec2-linux-clock-source/?nc1=h_ls)
+Some cloud vm could support tsc as clock source, e.g., [AWS EC2](https://aws.amazon.com/premiumsupport/knowledge-center/manage-ec2-linux-clock-source/?nc1=h_ls), this lib could work well with these clouds.
 
 Please contact your vm supports team to make sure the tsc clock source is reliable before using it.
 
