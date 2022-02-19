@@ -117,7 +117,7 @@ func (r *runner) run() {
 
 	ooffset, ocoeff := tsc.LoadOffsetCoeff(tsc.OffsetCoeffAddr)
 
-	fmt.Printf("cpu: %s, bigin with tsc_freq: %.16f, offset: %d\n", cpuFlag, 1e9/ocoeff, ooffset)
+	fmt.Printf("cpu: %s, begin with tsc_freq: %.16f(coeff: %.16f), offset: %d\n", cpuFlag, 1e9/ocoeff, ocoeff,ooffset)
 
 	ctx, cancel := context.WithCancel(context.Background())
 
