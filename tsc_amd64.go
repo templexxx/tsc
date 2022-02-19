@@ -103,9 +103,11 @@ func Calibrate() {
 func simpleLinearRegression(tscs, syss []float64) (coeff float64, offset int64) {
 
 	tmean, wmean := float64(0), float64(0)
-	for i := range tscs {
-		tmean += tscs[i]
-		wmean += syss[i]
+	for _, i := range tscs {
+		tmean += i
+	}
+	for _, i := range syss {
+		wmean += i
 	}
 	tmean = tmean / float64(len(tscs))
 	wmean = wmean / float64(len(syss))
