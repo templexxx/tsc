@@ -5,7 +5,6 @@ import (
 	"os"
 	"runtime"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/templexxx/cpu"
@@ -60,8 +59,6 @@ var (
 var UnixNano = sysClock
 
 func sysClock() int64 {
-	lock := new(sync.Mutex)
-	lock.Lock()
 	return time.Now().UnixNano()
 }
 
