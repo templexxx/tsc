@@ -5,6 +5,10 @@ Get unix time (nanoseconds) in blazing low latency with high precision. About 6x
 
 Could accelerate Cloud-Native applications too! See [this](#virtual-machine) for details.
 
+## Other Programming Languages
+
+1. [Rust](https://github.com/templexxx/rtsc)
+
 ## Could be used in ...
 
 1. High performance log: as timestamp field

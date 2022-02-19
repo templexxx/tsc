@@ -70,8 +70,7 @@ func isHardwareSupported() bool {
 
 // Calibrate calibrates tsc clock.
 //
-// It's a good practice that run Calibrate periodically (every 10-15mins),
-// because the system clock may be calibrated by network (e.g. NTP).
+// It's a good practice that run Calibrate periodically (e.g., 5 min is a good start because the auto NTP adjust is always every 11 min).
 func Calibrate() {
 
 	if !isHardwareSupported() {
@@ -149,10 +148,10 @@ func getClosestTSCSys(n int) (minDelta, tscClock, sys int64) {
 	// [tscClock, wc, tscClock, wc, ..., tscClock]
 	timeline := make([]int64, n+n+1)
 
-	timeline[0] = GetInOrder()
+	timeline[0] = RDTSC()
 	for i := 1; i < len(timeline)-1; i += 2 {
 		timeline[i] = time.Now().UnixNano()
-		timeline[i+1] = GetInOrder()
+		timeline[i+1] = RDTSC()
 	}
 
 	// The minDelta is the smallest gap between two adjacent tscs,
