@@ -41,10 +41,6 @@ func BenchmarkSysTime(b *testing.B) {
 
 func TestFastCheckDrift(t *testing.T) {
 
-	if !Supported() {
-		t.Skip("tsc is unsupported")
-	}
-
 	time.Sleep(time.Second)
 	tscc := UnixNano()
 	wallc := time.Now().UnixNano()

@@ -1,6 +1,9 @@
+//go:build !amd64
 // +build !amd64
 
 package tsc
+
+func reset() bool { return false }
 
 // Calibrate calibrates tsc & wall clock.
 //
