@@ -30,8 +30,19 @@ func reset() bool {
 
 	if IsOutOfOrder() {
 		if cpu.X86.HasFMA {
-			UnixNano = unixNanoTSCFMA
-			return true
+			start := GetInOrder()
+			for i := 0; i < 1000; i++ {
+				_ = unixNanoTSCFMA()
+			}
+			fmaCost := GetInOrder() - start
+			start = GetInOrder()
+			for i := 0; i < 1000; i++ {
+				_ = unixNanoTSC16B()
+			}
+			tscCost := GetInOrder() - start
+			if fmaCost < tscCost {
+				UnixNano = unixNanoTSCFMA
+			}
 		}
 		UnixNano = unixNanoTSC16B
 		return true
@@ -192,10 +203,12 @@ func getClosestTSCSys(n int) (minDelta, tscClock, sys int64) {
 
 // GetInOrder gets tsc value in strictly order.
 // It's used for helping calibrate to avoid out-of-order issues.
+//
 //go:noescape
 func GetInOrder() int64
 
 // RDTSC gets tsc value out-of-order.
+//
 //go:noescape
 func RDTSC() int64
 
@@ -215,5 +228,6 @@ func storeOffsetCoeff(dst *byte, offset int64, coeff float64)
 func storeOffsetFCoeff(dst *byte, offset, coeff float64)
 
 // Same logic as unixNanoTSC16B for checking getting offset & coeff correctly.
+//
 //go:noescape
 func LoadOffsetCoeff(src *byte) (offset int64, coeff float64)

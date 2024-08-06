@@ -1,3 +1,4 @@
+//go:build amd64
 // +build amd64
 
 package tsc
@@ -82,7 +83,7 @@ func BenchmarkRDTSC(b *testing.B) {
 	}
 }
 
-func BenchmarkXXXFMA(b *testing.B) {
+func BenchmarUnixNanoTSCFMA(b *testing.B) {
 
 	if !Supported() {
 		b.Skip("tsc is unsupported")
@@ -93,7 +94,7 @@ func BenchmarkXXXFMA(b *testing.B) {
 	}
 }
 
-func BenchmarkXXXOrigin(b *testing.B) {
+func BenchmarkUnixNanoTSC16B(b *testing.B) {
 
 	if !Supported() {
 		b.Skip("tsc is unsupported")
