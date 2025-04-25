@@ -117,7 +117,7 @@ func (r *runner) run() {
 
 	ooffset, ocoeff := tsc.LoadOffsetCoeff(tsc.OffsetCoeffAddr)
 
-	fmt.Printf("cpu: %s, begin with tsc_freq: %.16f(coeff: %.16f), offset: %d\n", cpuFlag, 1e9/ocoeff, ocoeff,ooffset)
+	fmt.Printf("cpu: %s, begin with tsc_freq: %.16f(coeff: %.16f), offset: %d\n", cpuFlag, 1e9/ocoeff, ocoeff, ooffset)
 
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -239,13 +239,20 @@ func (r *runner) doJobLoop(thread int) {
 				thread, sysClock, cmpTo, clock2, float64(delta)/float64(time.Microsecond), float64(delta2)/float64(time.Microsecond))
 		}
 	}
-	fmt.Printf("thread: %d, first_delta: %.2fus, last_delta: %.2fus, min_delta: %.2fus, max_delta: %.2fus, every_sec_add: %.2fus\n",
+
+	totalDelta := float64(0)
+	for _, delta := range r.deltas[thread] {
+		totalDelta += math.Abs(float64(delta))
+	}
+	avgDelta := totalDelta / float64(r.cfg.JobTime)
+
+	fmt.Printf("[thread-%d] delta(abs): first: %.2fus, last: %.2fus, min: %.2fus, max: %.2fus, mean: %.2fus\n",
 		thread,
-		float64(r.deltas[thread][0])/float64(time.Microsecond),
-		float64(r.deltas[thread][r.cfg.JobTime-1])/float64(time.Microsecond),
-		float64(minDelta)/float64(time.Microsecond),
-		float64(maxDelta)/float64(time.Microsecond),
-		(float64(r.deltas[thread][r.cfg.JobTime-1])-float64(r.deltas[thread][0]))/float64(r.cfg.JobTime)/1000)
+		math.Abs(float64(r.deltas[thread][0])/float64(time.Microsecond)),
+		math.Abs(float64(r.deltas[thread][r.cfg.JobTime-1])/float64(time.Microsecond)),
+		math.Abs(float64(minDelta)/float64(time.Microsecond)),
+		math.Abs(float64(maxDelta)/float64(time.Microsecond)),
+		avgDelta/1000)
 }
 
 var outTmFmt = "2006-01-02T150405"

@@ -46,12 +46,14 @@ TSC is ideal for applications where timestamp performance matters:
 
 ## Performance Comparison
 
-| OS | CPU | time.Now().UnixNano() ns/op | tsc.UnixNano() ns/op | Improvement |
-| --- | --- | --- | --- | --- |
-| macOS Catalina | Intel Core i7-7700HQ | 72.8 | 7.65 | 89.49% |
-| Ubuntu 18.04 | Intel Core i5-8250U | 47.7 | 8.41 | 82.36% |
-| Ubuntu 20.04 | Intel Core i9-9920X | 36.5 | 6.19 | 83.04% |
-| Fedora 40 | Intel Core i7-12700K | 22.34 | 5.81 | 73.99% |
+| OS             | CPU                  | time.Now().UnixNano() ns/op | tsc.UnixNano() ns/op | Improvement |
+|----------------|----------------------|-----------------------------|----------------------|-------------|
+| macOS Catalina | Intel Core i7-7700HQ | 72.8                        | 7.65                 | 89.49%      |
+| Ubuntu 18.04   | Intel Core i5-8250U  | 47.7                        | 8.41                 | 82.36%      |
+| Ubuntu 20.04   | Intel Core i9-9920X  | 36.5                        | 6.19                 | 83.04%      |
+| Fedora 40      | Intel Core i7-12700K | 22.34                       | 5.81                 | 73.99%      |
+| Fedora 41      | AMD Ryzen 9 7950X3D  | 29.81                       | 6.27                 | 78.97%      |
+
 ## Clock Drift Analysis
 TSC provides tools to analyze the stability and drift characteristics in your environment:
 - **macOS testing**: Shows excellent stability with minimal drift within 1μs

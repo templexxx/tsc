@@ -83,7 +83,7 @@ func BenchmarkRDTSC(b *testing.B) {
 	}
 }
 
-func BenchmarUnixNanoTSCFMA(b *testing.B) {
+func BenchmarkUnixNanoTSCFMA(b *testing.B) {
 
 	if !Supported() {
 		b.Skip("tsc is unsupported")
