@@ -58,8 +58,8 @@ func isHardwareSupported() bool {
 	}
 
 	// Invariant TSC could make sure TSC got synced among multi CPUs.
-	// They will be reset at same time, and run in same frequency.
-	// But in some VM, the max Extended Function in CPUID is < 0x80000007,
+	// They will be reset at the same time and run the same frequency.
+	// But in some VM, the max Extended Function in CPUID is < 0x80000007;
 	// we should enable TSC if the system clock source is TSC.
 	if !cpu.X86.HasInvariantTSC {
 		if GetCurrentClockSource() != "tsc" {
@@ -68,9 +68,9 @@ func isHardwareSupported() bool {
 	}
 
 	// Some instructions need AVX, see tsc_amd64.s for details.
-	// And we need AVX supports for 16 Bytes atomic store/load, see internal/xatomic for deatils.
-	// Actually, it's hardly to find a CPU without AVX supports in present. :)
-	// And it's weird that a CPU has invariant TSC but doesn't have AVX.
+	// And we need AVX support for 16 Bytes atomic store/load, see internal/xatomic for deatils.
+	// Actually, it's hard to find a CPU without AVX support at present. :)
+	// And it's unique that a CPU has invariant TSC but doesn't have AVX.
 	if !cpu.X86.HasAVX {
 		return false
 	}
@@ -81,7 +81,7 @@ func isHardwareSupported() bool {
 
 // Calibrate calibrates tsc clock.
 //
-// It's a good practice that run Calibrate periodically (e.g., 5 min is a good start because the auto NTP adjust is always every 11 min).
+// It's a good practice that runs Calibrate periodically (e.g., 5 min is a good start).
 func Calibrate() {
 
 	if !isHardwareSupported() {
@@ -155,7 +155,7 @@ func getClosestTSCSys(n int) (minDelta, tscClock, sys int64) {
 	// Although time.Now() is using VDSO to get time, but it's unstable,
 	// sometimes it will take more than 1000ns,
 	// we have to use a big loop(e.g. 256) to get the "real" clock.
-	// And it won't take a long time to finish calibrating job, only about 20µs.
+	// And it won't take a long time to finish a calibrating job, only about 20µs.
 	// [tscClock, wc, tscClock, wc, ..., tscClock]
 	timeline := make([]int64, n+n+1)
 
@@ -171,7 +171,7 @@ func getClosestTSCSys(n int) (minDelta, tscClock, sys int64) {
 	minIndex := 1 // minIndex is sys clock index where has minDelta.
 
 	// time.Now()'s precision is only µs (on macOS),
-	// which means we will get multi same sys clock in timeline,
+	// which means we will get the multi-same sys clock in timeline,
 	// and the middle one is closer to the real time in statistics.
 	// Try to find the minimum delta when sys clock is in the "middle".
 	for i := 1; i < len(timeline)-1; i += 2 {
@@ -201,8 +201,8 @@ func getClosestTSCSys(n int) (minDelta, tscClock, sys int64) {
 	return
 }
 
-// GetInOrder gets tsc value in strictly order.
-// It's used for helping calibrate to avoid out-of-order issues.
+// GetInOrder gets tsc value in strict order.
+// It's used to help calibrating to avoid out-of-order issues.
 //
 //go:noescape
 func GetInOrder() int64

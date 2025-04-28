@@ -142,7 +142,7 @@ func (r *runner) run() {
 						fmt.Printf("origin tsc_freq: %.16f, new_tsc_freq: %.16f\n", originFreq, 1e9/ocoeff)
 					}
 				case <-ctx2.Done():
-					break
+					return
 				}
 			}
 		}(ctx)

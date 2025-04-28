@@ -24,6 +24,9 @@ Unlike the system clock, TSC provides stable invocation costs and higher precisi
 - **Cross-platform compatibility**: Falls back to standard time functions when TSC isn't supported
 
 ## Getting Started
+
+### Basic Usage
+
 ``` go
 package main
 
@@ -37,6 +40,11 @@ func main() {
 	fmt.Println(ts, tsc.Supported())  // Print result & whether TSC is supported
 }
 ```
+
+### With Calibration
+
+Here is an [example of using TSC with calibration](examples/with-calibration.go)
+
 ## Use Cases
 TSC is ideal for applications where timestamp performance matters:
 1. High-performance logging systems (timestamp field generation)
@@ -56,8 +64,9 @@ TSC is ideal for applications where timestamp performance matters:
 
 ## Clock Drift Analysis
 TSC provides tools to analyze the stability and drift characteristics in your environment:
+
+- **Linux testing**: Demonstrates how the library handles frequency variations on different hardware qualities. For modern hardware, drift is about 1μs for long-term running.
 - **macOS testing**: Shows excellent stability with minimal drift within 1μs
-- **Linux testing**: Demonstrates how the library handles frequency variations on different hardware qualities
 - **Calibration effects**: Visualizations showing how periodic calibration minimizes long-term drift
 
 Detailed drift analysis charts are available in the [tools/longdrift](tools/longdrift/README.md) directory.
