@@ -1,12 +1,14 @@
-Calibrate
-===
+# Calibrate
 
-Calibrate is a tool for showing attempts to find out TSC coefficient (`1 / (frequency / 1e9)`).
+Calibrate is a tool for determining the TSC (Time Stamp Counter) coefficient, calculated as `1 / (frequency / 1e9)`.
 
-It helps me to finalize the algorithm of calculation of TSC coefficient in tsc package.
+This utility helps finalize the algorithm for TSC coefficient calculation in the tsc package.
 
-Reasons of choosing simple linear regression with intercept:
+## Methodology
 
-1. Easy to calculate.
-2. The result is good enough.
-3. Easy to understand, the coefficient represents the `freqeuncy`, the `offset` is two clocks constant offset.
+Simple linear regression with intercept was chosen for the following reasons:
+
+1. The results provide sufficient accuracy for practical applications
+2. The model is easily interpretable:
+   - The coefficient directly corresponds to the frequency
+   - The intercept represents the constant offset between the two clock sources
