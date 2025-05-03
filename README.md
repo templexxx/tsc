@@ -67,6 +67,7 @@ TSC provides tools to analyze the stability and drift characteristics in your en
 
 - **Linux testing**: Demonstrates how the library handles frequency variations on different hardware qualities. For modern hardware, drift is about 1μs for long-term running.
 - **macOS testing**: Shows excellent stability with minimal drift within 1μs
+- **Windows testing**: Have not been tested yet. May need High-resolution timer support for calibration
 - **Calibration effects**: Visualizations showing how periodic calibration minimizes long-term drift
 
 Detailed drift analysis charts are available in the [tools/longdrift](tools/longdrift/README.md) directory.
