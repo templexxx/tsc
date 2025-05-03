@@ -16,6 +16,11 @@ TSC is a Go library that provides extremely low-latency, high-precision Unix tim
 ## Overview
 TSC leverages the processor's Time Stamp Counter (TSC) register to provide extremely fast timestamp generation. With Invariant TSC support, the library offers reliable frequency measurements across multiple cores/CPUs, delivering timestamps with sub-10ns overhead.
 Unlike the system clock, TSC provides stable invocation costs and higher precision, while still maintaining calibration with the wall clock to minimize drift.
+
+ <img src="tools/longdrift/longdrift_2025-04-27T004706.PNG" width = "600" height="600"/>
+
+( `abs(system_clock - tsc_clock)` for each second min: 0.00us, max: 10.75us, mean: 1.18us within 82,800 seconds)
+
 ## Key Features
 - **Blazing fast**: 6-10x faster than standard `time.Now().UnixNano()`
 - **High precision**: Better precision than kernel implementations
