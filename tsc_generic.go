@@ -1,5 +1,4 @@
-//go:build !amd64
-// +build !amd64
+//go:build !amd64 && !arm64
 
 package tsc
 
@@ -12,7 +11,6 @@ func reset() bool { return false }
 //
 // If !enabled do nothing.
 func Calibrate() {
-
 	return
 }
 
@@ -23,8 +21,8 @@ func CalibrateWithCoeff(coeff float64) {
 // GetInOrder gets tsc value in strictly order.
 // It's used for helping calibrate to avoid out-of-order issues.
 //
-// For non-amd64, just return 0.
-func GetInOrder() uint64 {
+// For platforms without hardware support, just return 0.
+func GetInOrder() int64 {
 	return 0
 }
 

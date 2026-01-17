@@ -1,0 +1,74 @@
+name: test-arch
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  test-cross-arch:
+    name: Test ${{ matrix.goos }}/${{ matrix.goarch }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # amd64 on Linux
+          - goos: linux
+            goarch: amd64
+            os: ubuntu-latest
+            race: true
+
+          # arm64 on macOS (native)
+          - goos: darwin
+            goarch: arm64
+            os: macos-latest
+            race: true
+
+          # amd64 on Windows
+          - goos: windows
+            goarch: amd64
+            os: windows-latest
+            race: true
+
+          # arm64 on Linux (cross-compile with QEMU)
+          - goos: linux
+            goarch: arm64
+            os: ubuntu-latest
+            race: false
+            use_qemu: true
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Set up QEMU (ARM64 cross-compile)
+        if: matrix.use_qemu
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qemu-user-static
+
+      - name: Build
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: go build -v ./...
+
+      - name: Run tests (with race detector)
+        if: matrix.race
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: go test -v -race -count=1 ./...
+
+      - name: Run tests (without race detector)
+        if: ${{ !matrix.race }}
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: go test -v -count=1 ./...

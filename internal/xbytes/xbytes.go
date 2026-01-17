@@ -39,11 +39,14 @@ func MakeAlignedBlock(blockSize, alignSize int) []byte {
 	if alignSize == 0 {
 		return block
 	}
+
 	a := Alignment(block, alignSize)
+
 	offset := 0
 	if a != 0 {
 		offset = alignSize - a
 	}
+
 	block = block[offset : offset+blockSize]
 	// Can't check Alignment of a zero sized block.
 	if blockSize != 0 {
@@ -52,5 +55,6 @@ func MakeAlignedBlock(blockSize, alignSize int) []byte {
 			panic("failed to align block")
 		}
 	}
+
 	return block
 }

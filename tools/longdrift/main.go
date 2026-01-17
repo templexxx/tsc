@@ -12,26 +12,13 @@ import (
 	"sync"
 	"time"
 
+	"github.com/klauspost/cpuid/v2"
+	"github.com/templexxx/cpu"
+	"github.com/templexxx/tsc"
 	"gonum.org/v1/plot"
 	"gonum.org/v1/plot/plotter"
 	"gonum.org/v1/plot/plotutil"
 	"gonum.org/v1/plot/vg"
-
-	"github.com/klauspost/cpuid/v2"
-	"github.com/templexxx/cpu"
-	"github.com/templexxx/tsc"
-)
-
-var (
-	jobTime           = flag.Int64("job_time", 1200, "unit: seconds")
-	enableCalibrate   = flag.Bool("enable_calibrate", false, "enable calibrate will help to catch up system clock")
-	calibrateInterval = flag.Int64("calibrate_interval", 300, "unit: seconds")
-	idle              = flag.Bool("idle", true, "if false it will run empty loops on each cores, try to simulate a busy cpu")
-	printDetails      = flag.Bool("print", false, "print every second delta & calibrate result")
-	threads           = flag.Int("threads", 1, "try to run comparing on multi cores")
-	coeff             = flag.Float64("coeff", 0, "coefficient for tsc: tsc_register * coeff + offset = timestamp")
-	cmpsys            = flag.Bool("cmp_sys", false, "compare two system clock")
-	inOrder           = flag.Bool("in_order", false, "get tsc register in-order (with lfence)")
 )
 
 type Config struct {
@@ -42,9 +29,9 @@ type Config struct {
 	Print             bool
 	Threads           int
 	Coeff             float64
+	CmpSys            bool
+	InOrder           bool
 }
-
-var cmpClock func() int64
 
 func sysClock() int64 {
 	return time.Now().UnixNano()
@@ -55,26 +42,39 @@ func tscClock() int64 {
 }
 
 func main() {
+	jobTimeFlag := flag.Int64("job_time", 1200, "unit: seconds")
+	enableCalibrateFlag := flag.Bool("enable_calibrate", false, "enable calibrate will help to catch up system clock")
+	calibrateIntervalFlag := flag.Int64("calibrate_interval", 300, "unit: seconds")
+	idleFlag := flag.Bool("idle", true, "if false it will run empty loops on each cores, try to simulate a busy cpu")
+	printDetailsFlag := flag.Bool("print", false, "print every second delta & calibrate result")
+	threadsFlag := flag.Int("threads", 1, "try to run comparing on multi cores")
+	coeffFlag := flag.Float64("coeff", 0, "coefficient for tsc: tsc_register * coeff + offset = timestamp")
+	cmpsysFlag := flag.Bool("cmp_sys", false, "compare two system clock")
+	inOrderFlag := flag.Bool("in_order", false, "get tsc register in-order (with lfence)")
 
 	flag.Parse()
 
-	if *cmpsys {
+	var cmpClock func() int64
+	if *cmpsysFlag {
 		cmpClock = sysClock
 	} else {
 		cmpClock = tscClock
 	}
 
-	if *inOrder {
+	if *inOrderFlag {
 		tsc.ForbidOutOfOrder()
 	}
 
 	cfg := Config{
-		JobTime:           *jobTime,
-		EnableCalibrate:   *enableCalibrate,
-		CalibrateInterval: time.Duration(*calibrateInterval) * time.Second,
-		Idle:              *idle,
-		Print:             *printDetails,
-		Threads:           *threads,
+		JobTime:           *jobTimeFlag,
+		EnableCalibrate:   *enableCalibrateFlag,
+		CalibrateInterval: time.Duration(*calibrateIntervalFlag) * time.Second,
+		Idle:              *idleFlag,
+		Print:             *printDetailsFlag,
+		Threads:           *threadsFlag,
+		Coeff:             *coeffFlag,
+		CmpSys:            *cmpsysFlag,
+		InOrder:           *inOrderFlag,
 	}
 
 	deltas := make([][]int64, cfg.Threads)
@@ -82,7 +82,7 @@ func main() {
 		deltas[i] = make([]int64, cfg.JobTime)
 	}
 
-	r := &runner{cfg: &cfg, deltas: deltas}
+	r := &runner{cfg: &cfg, deltas: deltas, wg: nil, cmpClock: cmpClock}
 
 	r.run()
 }
@@ -91,97 +91,102 @@ type runner struct {
 	cfg    *Config
 	deltas [][]int64
 
-	wg *sync.WaitGroup
+	wg       *sync.WaitGroup
+	cmpClock func() int64
 }
 
 func (r *runner) run() {
-
 	if !tsc.Supported() {
 		log.Fatal("tsc unsupported")
 	}
 
 	start := time.Now()
-	fmt.Printf("job start at: %s\n", start.Format(time.RFC3339Nano))
+	log.Printf("job start at: %s\n", start.Format(time.RFC3339Nano))
 
-	if *coeff != 0 {
-		tsc.CalibrateWithCoeff(*coeff)
+	if r.cfg.Coeff != 0 {
+		tsc.CalibrateWithCoeff(r.cfg.Coeff)
 	}
 
 	options := ""
+
 	flag.VisitAll(func(f *flag.Flag) {
 		options += fmt.Sprintf(" -%s %s", f.Name, f.Value)
 	})
 
-	fmt.Printf("testing with options:%s\n", options)
+	log.Printf("testing with options:%s\n", options)
+
 	cpuFlag := fmt.Sprintf("%s_%d", cpu.X86.Signature, cpu.X86.SteppingID)
 
 	ooffset, ocoeff := tsc.LoadOffsetCoeff(tsc.OffsetCoeffAddr)
 
-	fmt.Printf("cpu: %s, begin with tsc_freq: %.16f(coeff: %.16f), offset: %d\n", cpuFlag, 1e9/ocoeff, ocoeff, ooffset)
+	log.Printf("cpu: %s, begin with tsc_freq: %.16f(coeff: %.16f), offset: %d\n", cpuFlag, 1e9/ocoeff, ocoeff, ooffset)
 
 	ctx, cancel := context.WithCancel(context.Background())
 
 	if r.cfg.EnableCalibrate {
-		go func(ctx context.Context) {
-
-			ctx2, cancel2 := context.WithCancel(ctx)
-			defer cancel2()
-
-			ticker := time.NewTicker(r.cfg.CalibrateInterval)
-			defer ticker.Stop()
-
-			for {
-				select {
-				case <-ticker.C:
-					_, ocoeff := tsc.LoadOffsetCoeff(tsc.OffsetCoeffAddr)
-
-					originFreq := 1e9 / ocoeff
-					tsc.Calibrate()
-					_, ocoeff = tsc.LoadOffsetCoeff(tsc.OffsetCoeffAddr)
-					if *printDetails {
-						fmt.Printf("origin tsc_freq: %.16f, new_tsc_freq: %.16f\n", originFreq, 1e9/ocoeff)
-					}
-				case <-ctx2.Done():
-					return
-				}
-			}
-		}(ctx)
+		go r.backgroundCalibrate(ctx)
 	}
 
 	go takeCPU(ctx, r.cfg.Idle)
 
-	wg := new(sync.WaitGroup)
-	wg.Add(r.cfg.Threads)
-	r.wg = wg
+	waitGroup := new(sync.WaitGroup)
+	waitGroup.Add(r.cfg.Threads)
+	r.wg = waitGroup
 
-	for i := 0; i < r.cfg.Threads; i++ {
+	for i := range r.cfg.Threads {
 		go func(i int) {
 			r.doJobLoop(i)
 		}(i)
 	}
-	wg.Wait()
+
+	waitGroup.Wait()
 	cancel()
 
-	cost := time.Now().Sub(start)
-	fmt.Printf("job taken: %s\n", cost.String())
+	cost := time.Since(start)
+	log.Printf("job taken: %s\n", cost.String())
 
 	r.printDeltas()
 }
 
-func takeCPU(ctx context.Context, idle bool) {
+func (r *runner) backgroundCalibrate(ctx context.Context) {
+	ctx2, cancel2 := context.WithCancel(ctx)
+	defer cancel2()
 
+	ticker := time.NewTicker(r.cfg.CalibrateInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			_, ocoeff := tsc.LoadOffsetCoeff(tsc.OffsetCoeffAddr)
+
+			originFreq := 1e9 / ocoeff
+
+			tsc.Calibrate()
+
+			_, ocoeff = tsc.LoadOffsetCoeff(tsc.OffsetCoeffAddr)
+			if r.cfg.Print {
+				log.Printf("origin tsc_freq: %.16f, new_tsc_freq: %.16f\n", originFreq, 1e9/ocoeff)
+			}
+		case <-ctx2.Done():
+			return
+		}
+	}
+}
+
+func takeCPU(ctx context.Context, idle bool) {
 	if idle {
 		return
 	}
 
 	cnt := runtime.NumCPU()
 
-	hz := cpuid.CPU.Hz
-	if hz == 0 {
-		hz = 3 * 1000 * 1000 * 1000 // Assume 3GHz.
+	freq := cpuid.CPU.Hz
+	if freq == 0 {
+		freq = 3 * 1000 * 1000 * 1000 // Assume 3GHz.
 	}
 
-	for i := 0; i < cnt; i++ {
+	for range cnt {
 		go func(ctx context.Context) {
 			ctx2, cancel := context.WithCancel(ctx)
 			defer cancel()
@@ -194,11 +199,11 @@ func takeCPU(ctx context.Context, idle bool) {
 				}
 
 				// Empty loop may cost about 5 uops.
-				for j := 0; j < int(hz/5); j++ {
+				for range freq / 5 {
 				}
+
 				time.Sleep(time.Second)
 			}
-
 		}(ctx)
 	}
 }
@@ -210,16 +215,16 @@ func (r *runner) doJobLoop(thread int) {
 	maxDelta, maxDeltaABS := int64(0), float64(0)
 
 	cmpTo := "tsc"
-	if *cmpsys {
+	if r.cfg.CmpSys {
 		cmpTo = "sys_clock2"
 	}
 
-	for i := 0; i < int(r.cfg.JobTime); i++ {
-
+	for i := range r.cfg.JobTime {
 		time.Sleep(time.Second)
-		clock2 := cmpClock()
+
+		clock2 := r.cmpClock()
 		sysClock := time.Now().UnixNano()
-		clock22 := cmpClock()
+		clock22 := r.cmpClock()
 		delta := (clock2+clock22)/2 - sysClock
 		delta2 := clock22 - sysClock
 		r.deltas[thread][i] = delta
@@ -229,14 +234,17 @@ func (r *runner) doJobLoop(thread int) {
 			minDeltaABS = deltaABS
 			minDelta = delta
 		}
+
 		if deltaABS > maxDeltaABS {
 			maxDeltaABS = deltaABS
 			maxDelta = delta
 		}
 
 		if r.cfg.Print {
-			fmt.Printf("thread: %d, sys_clock: %d, %s: %d, delta: %.2fus, next_delta: %.2fus\n",
-				thread, sysClock, cmpTo, clock2, float64(delta)/float64(time.Microsecond), float64(delta2)/float64(time.Microsecond))
+			log.Printf("thread: %d, sys_clock: %d, %s: %d, delta: %.2fus, next_delta: %.2fus\n",
+				thread, sysClock, cmpTo, clock2,
+				float64(delta)/float64(time.Microsecond),
+				float64(delta2)/float64(time.Microsecond))
 		}
 	}
 
@@ -244,9 +252,10 @@ func (r *runner) doJobLoop(thread int) {
 	for _, delta := range r.deltas[thread] {
 		totalDelta += math.Abs(float64(delta))
 	}
+
 	avgDelta := totalDelta / float64(r.cfg.JobTime)
 
-	fmt.Printf("[thread-%d] delta(abs): first: %.2fus, last: %.2fus, min: %.2fus, max: %.2fus, mean: %.2fus\n",
+	log.Printf("[thread-%d] delta(abs): first: %.2fus, last: %.2fus, min: %.2fus, max: %.2fus, mean: %.2fus\n",
 		thread,
 		math.Abs(float64(r.deltas[thread][0])/float64(time.Microsecond)),
 		math.Abs(float64(r.deltas[thread][r.cfg.JobTime-1])/float64(time.Microsecond)),
@@ -255,23 +264,20 @@ func (r *runner) doJobLoop(thread int) {
 		avgDelta/1000)
 }
 
-var outTmFmt = "2006-01-02T150405"
-
 func (r *runner) printDeltas() {
-
-	p := plot.New()
+	plot := plot.New()
 
 	cmpTo := "TSC"
-	if *cmpsys {
+	if r.cfg.CmpSys {
 		cmpTo = "Syc Clock2"
 	}
 
-	p.Title.Text = fmt.Sprintf("%s - Sys Clock", cmpTo)
-	p.X.Label.Text = "Time(s)"
-	p.Y.Label.Text = "Delta(us)"
+	plot.Title.Text = cmpTo + " - Sys Clock"
+	plot.X.Label.Text = "Time(s)"
+	plot.Y.Label.Text = "Delta(us)"
 
 	for i := range r.deltas {
-		err := plotutil.AddLinePoints(p,
+		err := plotutil.AddLinePoints(plot,
 			fmt.Sprintf("thread: %d", i),
 			makePoints(r.deltas[i]))
 		if err != nil {
@@ -279,7 +285,10 @@ func (r *runner) printDeltas() {
 		}
 	}
 
-	if err := p.Save(10*vg.Inch, 10*vg.Inch, fmt.Sprintf("longdrift_%s.PNG", time.Now().Format(outTmFmt))); err != nil {
+	const outTmFmt = "2006-01-02T150405"
+
+	err := plot.Save(10*vg.Inch, 10*vg.Inch, fmt.Sprintf("longdrift_%s.PNG", time.Now().Format(outTmFmt)))
+	if err != nil {
 		panic(err)
 	}
 }

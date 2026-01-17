@@ -1,0 +1,74 @@
+version = '2'
+
+[linters]
+default = 'all'
+disable = [
+  'depguard',
+  'gochecknoglobals',
+  'gochecknoinits',
+  'godoclint',
+  'gomoddirectives',
+  'gosec',
+  'ireturn',
+  'musttag',
+  'nlreturn',
+  'noctx',
+  'recvcheck',
+  'wsl',
+]
+
+[linters.settings.revive]
+[[linters.settings.revive.rules]]
+name = "var-naming"
+disabled = true
+
+[linters.settings.varnamelen]
+ignore-names = [
+  'a',
+  'b',
+  'x',
+  'y',
+  'i',
+  'j',
+  'k',
+  'n',
+  'm',
+  'ok',
+  't',
+  's',
+  'tt',
+  'fd',
+]
+ignore-decls = ['T any']
+
+[linters.settings.wsl_v5]
+allow-first-in-block = true
+branch-max-lines = 2
+allow-whole-block = false
+
+[linters.exclusions]
+generated = 'lax'
+presets = ['comments', 'common-false-positives', 'legacy', 'std-error-handling']
+paths = ['third_party$', 'builtin$', 'examples$']
+
+[[linters.exclusions.rules]]
+linters = ['mnd']
+path = '.*\.go'
+
+[[linters.exclusions.rules]]
+linters = ['testpackage']
+path = '.*_test\.go'
+
+[severity]
+default = 'warn'
+
+[[severity.rules]]
+linters = ['exhaustive', 'exhaustruct', 'godox']
+severity = 'info'
+
+[formatters]
+enable = ['gofumpt', 'goimports']
+
+[formatters.exclusions]
+generated = 'lax'
+paths = ['third_party$', 'builtin$', 'examples$']

@@ -1,5 +1,4 @@
-LongDrift
-===
+# LongDrift
 
 longdrift is a tool built for to check TSC clock's drift.
 
@@ -12,7 +11,9 @@ Delta of tsc clock and system clock for each second.
 ### Linux(1)
 
 platform: Fedora 41, AMD Ryzen 9 7950X3D
+
 1. testing time: 82,800 seconds (with Calibrate every 5 mins):
+
 ```shell
 ./longdrift --enable_calibrate=true --job_time=82800
 job start at: 2025-04-26T01:46:37.100077215+08:00
@@ -21,12 +22,12 @@ cpu: 19_61H_2, begin with tsc_freq: 4200049623.1846308708190918(coeff: 0.2380924
 [thread-0] delta(abs): first: 1.10us, last: 1.05us, min: 0.00us, max: 10.75us, mean: 1.18us
 job taken: 23h0m29.119050804s
 ```
+
    <img src="longdrift_2025-04-27T004706.PNG" width = "600" height="600"/>
 2. testing time: 20 mins
    <img src="longdrift_2025-04-26T000854.PNG" width = "600" height="600"/>
 3. testing time: 20 mins (with Calibrate every 5 mins)
    <img src="longdrift_2025-04-26T003635.PNG" width = "600" height="600"/>
-
 
 ### Linux(2)
 

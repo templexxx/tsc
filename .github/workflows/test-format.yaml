@@ -1,0 +1,39 @@
+name: test-format
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  format:
+    name: Test Format
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Install formatters
+        run: |
+          # Install treefmt
+          curl -fsSL https://github.com/numtide/treefmt/releases/download/v2.1.1/treefmt_2.1.1_linux_amd64.tar.gz | sudo tar -C /usr/local/bin -xz treefmt
+
+          # Install prettier
+          npm install -g prettier markdownlint-cli
+
+          # Install gofumpt
+          go install mvdan.cc/gofumpt@latest
+
+          # Install gci
+          go install github.com/daixiang0/gci@latest
+
+      - name: Check formatting
+        run: |
+          treefmt --allow-missing-formatter --fail-on-change
