@@ -12,22 +12,21 @@ import (
 )
 
 var (
-	supported int64 = 0 // Supported invariant TSC or not.
-	// Set it to 1 by invoke AllowOutOfOrder() if out-of-order execution is acceptable.
-	// e.g., for logging, backwards is okay in nanoseconds level.
+	supported int64 = 0 // Whether Invariant TSC is supported.
+	// Set to 1 by calling AllowOutOfOrder() when out-of-order execution is acceptable.
+	// For example, logging can usually tolerate nanosecond-level timestamp reordering.
 	allowOutOfOrder int64 = 1
 )
 
 // unix_nano_timestamp = tsc_register_value * Coeff + Offset.
 // Coeff = 1 / (tsc_frequency / 1e9).
-// We could regard coeff as the inverse of TSCFrequency(GHz) (actually it just has mathematics property)
-// for avoiding future dividing.
-// MUL gets much better performance than DIV.
+// coeff can be treated as the inverse of TSC frequency in GHz for conversion.
+// Multiplication is much faster than division on this hot path.
 var (
 	// OffsetCoeff is offset & coefficient pair.
 	// Coefficient is in [0,64) bits.
 	// Offset is in [64, 128) bits.
-	// Using false sharing range as aligned size & total size for avoiding cache pollution.
+	// Use false-sharing range as alignment and block size to reduce cache-line contention.
 	OffsetCoeff     = xbytes.MakeAlignedBlock(cpu.X86FalseSharingRange, cpu.X86FalseSharingRange)
 	OffsetCoeffAddr = &OffsetCoeff[0]
 )
@@ -46,10 +45,12 @@ var (
 //
 // e.g.
 // ```
-// 	start := tsc.UnixNano()
-// 	foo()
-// 	end := tsc.UnixNano()
-// 	cost := end - start
+//
+//	start := tsc.UnixNano()
+//	foo()
+//	end := tsc.UnixNano()
+//	cost := end - start
+//
 // ```
 // The value of cost is unpredictable,
 // because all instructions for getting tsc are not serializing,
@@ -62,14 +63,14 @@ func sysClock() int64 {
 	return time.Now().UnixNano()
 }
 
-// Supported indicates Invariant TSC supported.
+// Supported reports whether Invariant TSC is supported.
 func Supported() bool {
 	return supported == 1
 }
 
 // AllowOutOfOrder sets allowOutOfOrder true.
 //
-// Not threads safe.
+// Not thread-safe.
 func AllowOutOfOrder() {
 
 	if !Supported() {
@@ -83,7 +84,7 @@ func AllowOutOfOrder() {
 
 // ForbidOutOfOrder sets allowOutOfOrder false.
 //
-// Not threads safe.
+// Not thread-safe.
 func ForbidOutOfOrder() {
 
 	if !Supported() {
@@ -95,9 +96,9 @@ func ForbidOutOfOrder() {
 	reset()
 }
 
-// IsOutOfOrder returns allow out-of-order or not.
+// IsOutOfOrder reports whether out-of-order execution is allowed.
 //
-// Not threads safe.
+// Not thread-safe.
 func IsOutOfOrder() bool {
 	return allowOutOfOrder == 1
 }
@@ -110,7 +111,8 @@ var (
 	linuxClockSourcePath = "/sys/devices/system/clocksource/clocksource0/current_clocksource"
 )
 
-// GetCurrentClockSource gets clock source on Linux.
+// GetCurrentClockSource returns the Linux kernel clock source.
+// Returns an empty string on non-Linux platforms or read errors.
 func GetCurrentClockSource() string {
 
 	if runtime.GOOS != "linux" {

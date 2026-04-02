@@ -1,5 +1,11 @@
 # TSC - High-Performance Unix Time in Go
-TSC is a Go library that provides extremely low-latency, high-precision Unix timestamps using the processor's Time Stamp Counter register. It's 6-10x faster than and can significantly improve performance for time-sensitive applications. `time.Now().UnixNano()`
+
+[![pkg.go.dev](https://pkg.go.dev/badge/github.com/templexxx/tsc.svg)](https://pkg.go.dev/github.com/templexxx/tsc)
+[![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Unit Test](https://github.com/templexxx/tsc/actions/workflows/unit-test.yml/badge.svg)](https://github.com/templexxx/tsc/actions/workflows/unit-test.yml)
+[![Go Report Card](https://goreportcard.com/badge/github.com/templexxx/tsc)](https://goreportcard.com/report/github.com/templexxx/tsc)
+
+TSC is a Go library that provides low-latency, high-precision Unix timestamps using the processor Time Stamp Counter (TSC). In this repository's benchmarks, `tsc.UnixNano()` is typically 6-10x faster than `time.Now().UnixNano()`, which helps time-sensitive workloads reduce timestamp overhead.
 ## Table of Contents
 - [Overview](#overview)
 - [Key Features](#key-features)
@@ -14,19 +20,19 @@ TSC is a Go library that provides extremely low-latency, high-precision Unix tim
 - [Related Projects](#related-projects)
 
 ## Overview
-TSC leverages the processor's Time Stamp Counter (TSC) register to provide extremely fast timestamp generation. With Invariant TSC support, the library offers reliable frequency measurements across multiple cores/CPUs, delivering timestamps with sub-10ns overhead.
-Unlike the system clock, TSC provides stable invocation costs and higher precision, while still maintaining calibration with the wall clock to minimize drift.
+TSC leverages the processor Time Stamp Counter (TSC) register to generate timestamps with very low overhead. With Invariant TSC support, the library can keep frequency measurements stable across cores and deliver sub-10ns call overhead.
+Compared with direct system clock calls, TSC offers more stable invocation cost. Periodic calibration keeps it aligned with the wall clock to control drift over long runs.
 
  <img src="tools/longdrift/longdrift_2025-04-27T004706.PNG" width = "600" height="600"/>
 
-( `abs(system_clock - tsc_clock)` for each second min: 0.00us, max: 10.75us, mean: 1.18us within 82,800 seconds)
+(`abs(system_clock - tsc_clock)` sampled every second: min 0.00us, max 10.75us, mean 1.18us over 82,800 seconds)
 
 ## Key Features
-- **Blazing fast**: 6-10x faster than standard `time.Now().UnixNano()`
-- **High precision**: Better precision than kernel implementations
-- **Stable overhead**: Consistent cost for each invocation (under 10ns)
+- **Fast path**: 6-10x faster than `time.Now().UnixNano()` in repository benchmarks
+- **High precision**: Fine-grained timestamp generation with TSC-backed conversion
+- **Stable overhead**: Predictable per-call cost (typically under 10ns)
 - **Auto-calibration**: Periodically aligns with the system clock
-- **Cross-platform compatibility**: Falls back to standard time functions when TSC isn't supported
+- **Cross-platform compatibility**: Falls back to standard time functions when TSC is unavailable
 
 ## Getting Started
 
@@ -41,21 +47,21 @@ import (
 )
 
 func main() {
-	ts := tsc.UnixNano()   // Getting unix nano timestamp
-	fmt.Println(ts, tsc.Supported())  // Print result & whether TSC is supported
+	ts := tsc.UnixNano()   // Unix timestamp in nanoseconds
+	fmt.Println(ts, tsc.Supported())  // timestamp and whether TSC path is active
 }
 ```
 
 ### With Calibration
 
-Here is an [example of using TSC with calibration](examples/with-calibration.go)
+See [calibration example](examples/with-calibration.go).
 
 ## Use Cases
 TSC is ideal for applications where timestamp performance matters:
-1. High-performance logging systems (timestamp field generation)
+1. High-performance logging (timestamp field generation)
 2. Benchmarking and performance measurement
 3. Low-latency applications with frequent timestamp needs
-4. Cloud-native applications with performance constraints
+4. Infrastructure services with strict tail-latency budgets
 
 ## Performance Comparison
 
@@ -70,27 +76,27 @@ TSC is ideal for applications where timestamp performance matters:
 ## Clock Drift Analysis
 TSC provides tools to analyze the stability and drift characteristics in your environment:
 
-- **Linux testing**: Demonstrates how the library handles frequency variations on different hardware qualities. For modern hardware, drift is about 1μs for long-term running.
-- **macOS testing**: Shows excellent stability with minimal drift within 1μs
-- **Windows testing**: Have not been tested yet. May need High-resolution timer support for calibration
-- **Calibration effects**: Visualizations showing how periodic calibration minimizes long-term drift
+- **Linux**: Demonstrates behavior under different hardware quality and frequency stability. On modern hardware, long-run drift can stay around 1us.
+- **macOS(X86)**: Shows strong stability with drift typically within 1us in provided tests.
+- **Windows**: Not validated in this repository yet; calibration behavior may depend on high-resolution timer support.
+- **Calibration effect**: Visualizations show periodic calibration reducing long-run drift.
 
 Detailed drift analysis charts are available in the [tools/longdrift](tools/longdrift/README.md) directory.
 ## Best Practices
-1. **Periodic calibration**: Call every 5 minutes to align with system clock (NTP adjustments typically occur every 11 minutes) `tsc.Calibrate()`
+1. **Periodic calibration**: Run `tsc.Calibrate()` regularly (for example every 5 minutes) to keep alignment with wall clock updates such as NTP.
 2. **Verify stability**: Use provided tools to verify TSC stability in your environment
-3. **Ordered execution**: Use when measuring execution time of short code segments `tsc.ForbidOutOfOrder()`
-4. **Fallback awareness**: Check to know if the hardware TSC is being used or if standard time functions are the fallback `tsc.Supported()`
+3. **Ordered execution**: Use `tsc.ForbidOutOfOrder()` before measuring short code segments.
+4. **Fallback awareness**: Check `tsc.Supported()` to confirm whether hardware TSC is active or fallback mode is in use.
 
 ## Virtual Machine Support
 When running in virtualized environments:
-- Some cloud providers handle TSC clock source correctly (like AWS EC2)
-- Feature detection may be limited by CPUID restrictions in VMs
-- TSC will be used as clock source when detected as the system clock source
-- Verify with your VM provider before deploying in production
+- Some cloud platforms expose stable TSC clock sources (for example AWS EC2)
+- CPUID-based feature detection can be limited by VM restrictions
+- TSC path is enabled when TSC is detected as the active system clock source
+- Validate behavior in your target VM environment before production rollout
 
 ## Limitations
-1. **Platform support**: Best results on Linux with Intel Enterprise CPUs
+1. **Platform support**: Best results are currently observed on Linux with server-grade CPUs
 2. **Hardware quality**: Consumer-grade crystals may show higher drift
 3. **VM uncertainty**: Behavior in virtualized environments depends on provider implementation
 

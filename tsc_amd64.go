@@ -7,7 +7,7 @@ import (
 	"github.com/templexxx/cpu"
 )
 
-// Configs of calibration.
+// Calibration configuration.
 // See tools/calibrate for details.
 const (
 	samples                 = 128
@@ -57,20 +57,19 @@ func isHardwareSupported() bool {
 		return true
 	}
 
-	// Invariant TSC could make sure TSC got synced among multi CPUs.
-	// They will be reset at the same time and run the same frequency.
-	// But in some VM, the max Extended Function in CPUID is < 0x80000007;
-	// we should enable TSC if the system clock source is TSC.
+	// Invariant TSC ensures TSC counters stay synchronized across CPUs:
+	// counters reset together and run at the same frequency.
+	// In some VMs, CPUID may not expose 0x80000007. In that case,
+	// allow TSC if the active Linux clock source is already "tsc".
 	if !cpu.X86.HasInvariantTSC {
 		if GetCurrentClockSource() != "tsc" {
-			return false // Cannot detect invariant tsc by CPUID or linux clock source, return false.
+			return false // Cannot confirm Invariant TSC from CPUID or Linux clock source.
 		}
 	}
 
 	// Some instructions need AVX, see tsc_amd64.s for details.
-	// And we need AVX support for 16 Bytes atomic store/load, see internal/xatomic for deatils.
-	// Actually, it's hard to find a CPU without AVX support at present. :)
-	// And it's unique that a CPU has invariant TSC but doesn't have AVX.
+	// We also rely on AVX for 16-byte atomic store/load in this implementation.
+	// It is rare to find a modern CPU with Invariant TSC but without AVX.
 	if !cpu.X86.HasAVX {
 		return false
 	}
@@ -79,9 +78,9 @@ func isHardwareSupported() bool {
 	return true
 }
 
-// Calibrate calibrates tsc clock.
+// Calibrate updates the mapping from TSC ticks to wall clock.
 //
-// It's a good practice that runs Calibrate periodically (e.g., 5 min is a good start).
+// Running this periodically is recommended (for example every 5 minutes).
 func Calibrate() {
 
 	if !isHardwareSupported() {
@@ -133,9 +132,9 @@ func simpleLinearRegression(tscs, syss []float64) (coeff float64, offset int64) 
 	return coeff, int64(wmean - coeff*tmean)
 }
 
-// CalibrateWithCoeff calibrates coefficient to wall_clock by variables.
+// CalibrateWithCoeff calibrates with a fixed coefficient provided by caller.
 //
-// Not thread safe, only for testing.
+// Not thread-safe. Intended for tests only.
 func CalibrateWithCoeff(c float64) {
 
 	if !Supported() {
@@ -148,14 +147,12 @@ func CalibrateWithCoeff(c float64) {
 	storeOffsetFCoeff(OffsetCoeffFAddr, float64(off), c)
 }
 
-// getClosestTSCSys tries to get the closest tsc register value nearby the system clock in a loop.
+// getClosestTSCSys finds the TSC value that is closest to a sampled system clock.
 func getClosestTSCSys(n int) (minDelta, tscClock, sys int64) {
 
-	// 256 is enough for finding the lowest sys clock cost in most cases.
-	// Although time.Now() is using VDSO to get time, but it's unstable,
-	// sometimes it will take more than 1000ns,
-	// we have to use a big loop(e.g. 256) to get the "real" clock.
-	// And it won't take a long time to finish a calibrating job, only about 20µs.
+	// A loop size like 256 is usually enough to observe a low-overhead system clock sample.
+	// Although time.Now() may use VDSO, latency still varies and can exceed 1000ns.
+	// The larger loop improves sample quality while keeping calibration overhead low.
 	// [tscClock, wc, tscClock, wc, ..., tscClock]
 	timeline := make([]int64, n+n+1)
 
@@ -165,15 +162,14 @@ func getClosestTSCSys(n int) (minDelta, tscClock, sys int64) {
 		timeline[i+1] = RDTSC()
 	}
 
-	// The minDelta is the smallest gap between two adjacent tscs,
-	// which means the smallest gap between sys clock and tscClock too.
+	// minDelta is the smallest gap between adjacent TSC reads,
+	// which also indicates the closest system-clock sample pairing.
 	minDelta = int64(math.MaxInt64)
-	minIndex := 1 // minIndex is sys clock index where has minDelta.
+	minIndex := 1 // sys clock index corresponding to minDelta.
 
-	// time.Now()'s precision is only µs (on macOS),
-	// which means we will get the multi-same sys clock in timeline,
-	// and the middle one is closer to the real time in statistics.
-	// Try to find the minimum delta when sys clock is in the "middle".
+	// On some platforms (for example macOS), time.Now() may have microsecond granularity.
+	// This creates repeated system-clock values in timeline; the middle sample is a better estimate.
+	// Find min delta where the system clock is centered in a repeated-value window.
 	for i := 1; i < len(timeline)-1; i += 2 {
 		last := timeline[i]
 		for j := i + 2; j < len(timeline)-1; j += 2 {
@@ -201,13 +197,13 @@ func getClosestTSCSys(n int) (minDelta, tscClock, sys int64) {
 	return
 }
 
-// GetInOrder gets tsc value in strict order.
-// It's used to help calibrating to avoid out-of-order issues.
+// GetInOrder gets TSC in strict order.
+// Used by calibration paths to avoid out-of-order effects.
 //
 //go:noescape
 func GetInOrder() int64
 
-// RDTSC gets tsc value out-of-order.
+// RDTSC gets TSC without ordering guarantees.
 //
 //go:noescape
 func RDTSC() int64
@@ -227,7 +223,7 @@ func storeOffsetCoeff(dst *byte, offset int64, coeff float64)
 //go:noescape
 func storeOffsetFCoeff(dst *byte, offset, coeff float64)
 
-// Same logic as unixNanoTSC16B for checking getting offset & coeff correctly.
+// Same logic as unixNanoTSC16B; used to verify offset and coeff loading.
 //
 //go:noescape
 func LoadOffsetCoeff(src *byte) (offset int64, coeff float64)

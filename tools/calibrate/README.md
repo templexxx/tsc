@@ -1,14 +1,15 @@
 # Calibrate
 
-Calibrate is a tool for determining the TSC (Time Stamp Counter) coefficient, calculated as `1 / (frequency / 1e9)`.
+`calibrate` estimates the TSC (Time Stamp Counter) conversion coefficient:
+`coeff = 1 / (frequency / 1e9)`.
 
-This utility helps finalize the algorithm for TSC coefficient calculation in the tsc package.
+This tool is used to validate and tune the coefficient estimation approach used by the `tsc` package.
 
 ## Methodology
 
-Simple linear regression with intercept was chosen for the following reasons:
+The current implementation uses simple linear regression with intercept because:
 
-1. The results provide sufficient accuracy for practical applications
+1. Accuracy is sufficient for practical timestamp conversion
 2. The model is easily interpretable:
-   - The coefficient directly corresponds to the frequency
-   - The intercept represents the constant offset between the two clock sources
+   - The coefficient maps directly to effective TSC frequency
+   - The intercept represents the constant offset between TSC and wall clock

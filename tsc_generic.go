@@ -5,12 +5,9 @@ package tsc
 
 func reset() bool { return false }
 
-// Calibrate calibrates tsc & wall clock.
+// Calibrate is a no-op on non-amd64 platforms.
 //
-// It's a good practice that run Calibrate period (every hour) outside,
-// because the wall clock may be calibrated (e.g. NTP).
-//
-// If !enabled do nothing.
+// Keeping this symbol preserves the package API across architectures.
 func Calibrate() {
 
 	return
@@ -20,10 +17,8 @@ func CalibrateWithCoeff(coeff float64) {
 	return
 }
 
-// GetInOrder gets tsc value in strictly order.
-// It's used for helping calibrate to avoid out-of-order issues.
-//
-// For non-amd64, just return 0.
+// GetInOrder gets TSC in strict order.
+// Non-amd64 builds do not support TSC and return zero.
 func GetInOrder() uint64 {
 	return 0
 }

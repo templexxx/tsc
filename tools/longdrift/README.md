@@ -1,13 +1,13 @@
 LongDrift
 ===
 
-longdrift is a tool built for to check TSC clock's drift.
+`longdrift` is a tool for measuring long-running drift between TSC-based time and system time.
 
-The accuracy and stability of a TSC clock majorly depend on the CPU and frequency of auto calibration.
+The accuracy and stability of TSC-based time depend mainly on CPU clock stability and calibration interval.
 
 ### Drift testing examples
 
-Delta of tsc clock and system clock for each second.
+Each chart shows the per-second delta between TSC clock and system clock.
 
 ### Linux(1)
 
@@ -30,7 +30,7 @@ job taken: 23h0m29.119050804s
 
 ### Linux(2)
 
-The result is not that good. We could find the crystal frequency wasn't stable enough;
+This result is less stable, indicating the crystal frequency is not sufficiently stable for this setup.
 
 platform: Ubuntu 18.04, Intel Core i5-8250U
 
